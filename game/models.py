@@ -1,3 +1,26 @@
+# game/models.py
 from django.db import models
+from django.utils import timezone
+import uuid, random
 
-# Create your models here.
+def short_code(n=6):
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    return "".join(random.choice(alphabet) for _ in range(n))
+
+class Team(models.Model):
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    code = models.CharField(max_length=8, unique=True, default=short_code)
+    started_at = models.DateTimeField(blank=True, null=True)
+    deadline_at = models.DateTimeField(blank=True, null=True)
+    finished_at = models.DateTimeField(blank=True, null=True)
+    current_order = models.PositiveIntegerField(default=1)
+    score = models.IntegerField(default=100)
+    letters = models.CharField(max_length=10, default="")
+
+class Player(models.Model):
+    ROLES = [("A","Alex"), ("B","Noa")]
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="players")
+    name = models.CharField(max_length=80)
+    role = models.CharField(max_length=1, choices=ROLES)
+    is_host = models.BooleanField(default=False)
+    last_seen = models.DateTimeField(default=timezone.now)

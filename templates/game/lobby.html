@@ -1,0 +1,12 @@
+{% extends "game/base.html" %}{% block content %}
+<div class="card shadow-sm"><div class="card-body">
+  <h1 class="h5 mb-2">Lobby — Code : <span class="badge text-bg-success">{{ team.code }}</span></h1>
+  <ul class="list-group mb-3">
+    {% for p in team.players.all %}
+      <li class="list-group-item">{{ p.name }} ({{ p.get_role_display }}){% if p.is_host %} — host{% endif %}</li>
+    {% endfor %}
+  </ul>
+  <hr>
+  {% include "comms/_chat.html" with TEAM=team.uuid %}
+</div></div>
+{% endblock %}

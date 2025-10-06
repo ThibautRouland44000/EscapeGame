@@ -1,0 +1,35 @@
+<div class="fw-bold mb-2">Chat</div>
+<div id="chatBox-{{ TEAM }}" style="height:220px; overflow:auto; border:1px solid #eee; padding:.5rem" aria-live="polite"></div>
+<form id="chatForm-{{ TEAM }}" class="mt-2 d-flex gap-2">
+  <input id="chatInput-{{ TEAM }}" class="form-control form-control-sm" placeholder="Message…">
+  <button class="btn btn-primary btn-sm">Envoyer</button>
+</form>
+<script>
+(function(){
+  const TEAM="{{ TEAM }}";
+  const box=document.getElementById("chatBox-"+TEAM);
+  const form=document.getElementById("chatForm-"+TEAM);
+  const input=document.getElementById("chatInput-"+TEAM);
+  let lastId=0;
+  function pull(){
+    fetch(`/chat/${TEAM}/fetch/?since=${lastId}`).then(r=>r.json()).then(d=>{
+      (d.messages||[]).forEach(m=>{
+        const line=document.createElement("div");
+        line.textContent=`[${new Date(m.ts).toLocaleTimeString()}] ${m.p} : ${m.t}`;
+        box.appendChild(line);
+        lastId=Math.max(lastId,m.id);
+      });
+      box.scrollTop=box.scrollHeight;
+    }).catch(()=>{});
+  }
+  setInterval(pull, 1200); pull();
+  function getCookie(n){const m=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)');return m?m.pop():''}
+  form.addEventListener("submit", (e)=>{
+    e.preventDefault();
+    const text=input.value.trim(); if(!text) return;
+    const body=new URLSearchParams({text});
+    fetch(`/chat/${TEAM}/send/`, {method:"POST", headers:{"X-CSRFToken":getCookie("csrftoken")}, body})
+      .then(()=>{ input.value=""; pull(); }).catch(()=>{});
+  });
+})();
+</script>
