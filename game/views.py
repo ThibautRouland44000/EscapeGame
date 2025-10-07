@@ -7,10 +7,7 @@ from django.urls import reverse
 
 PUZZLES = [
     {"slug": "museum", "title": "Musée des œuvres", "code": "ARTE"},
-    # Exemples à activer plus tard :
-    # {"slug": "market", "title": "Marché du monde", "code": "SOUK"},
-    # {"slug": "streetfood", "title": "Street Food", "code": "NORI"},
-    # {"slug": "festival", "title": "Festival des cultures", "code": "BONGO"},
+    {"slug": "hotel",  "title": "Chambre d'hôtel éco", "code": "ECO"},
 ]
 
 def _player(request, team):
@@ -50,8 +47,13 @@ def lobby(request, team_uuid):
 
     puzzles = []
     for p in PUZZLES:
-        enabled = (p["slug"] == "museum")
-        url = reverse("museum_puzzle", args=[team.uuid]) if enabled else "#"
+        if p["slug"] == "museum":
+            url = reverse("museum_puzzle", args=[team.uuid]); enabled = True
+        elif p["slug"] == "hotel":
+            url = reverse("hotel_room", args=[team.uuid]); enabled = True
+        else:
+            url = "#"; enabled = False
+
         puzzles.append({
             "slug": p["slug"],
             "title": p["title"],

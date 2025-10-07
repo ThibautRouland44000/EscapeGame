@@ -6,5 +6,6 @@ urlpatterns = [
     path("", include("game.urls")),
     path("chat/", include("comms.urls")),
     path("museum/", include("museum.urls")),
+    path("hotel/", include("hotel.urls")),
 ]
 
