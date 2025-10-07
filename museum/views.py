@@ -2,7 +2,8 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_http_methods
 from django.urls import reverse
-from game.models import Team, Player
+from game.models import Team, Player, TeamCode 
+from game.views import PUZZLES 
 from comms.models import Message
 import random 
 
@@ -128,6 +129,14 @@ def museum_puzzle(request, team_uuid):
                     team.letters += "O"
                 team.save(update_fields=["current_order","letters"])
 
+                # enregistrer le code gagné pour ce puzzle
+                MUSEUM_CODE = next(p["code"] for p in PUZZLES if p["slug"] == "museum")
+                TeamCode.objects.get_or_create(
+                    team=team, puzzle_slug="museum",
+                    defaults={"code": MUSEUM_CODE}
+                )
+                Message.objects.create(team=team, player=None, text=f"🎉 Épreuve du Musée réussie ! 🔐 Code obtenu : {MUSEUM_CODE}") 
+
                 # Message “Système” dans le chat visible par les 2 joueurs
                 Message.objects.create(team=team, player=None,
                                        text="🎉 Épreuve du Musée réussie !")
@@ -201,5 +210,7 @@ def museum_debrief(request, team_uuid):
         "player": player,
         "items": items,
     })
+
+
 
 

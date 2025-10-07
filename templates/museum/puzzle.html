@@ -10,14 +10,20 @@
 <div class="row g-3">
   <div class="col-lg-8">
     <div class="card shadow-sm">
-      <div class="card-header bg-white">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <h2 class="h5 mb-0">
-          {% if role == "A" %}
+            {% if role == "A" %}
             Tu vois les <strong>6 œuvres</strong>. Décris-les à ton binôme.
-          {% else %}
+            {% else %}
             Tu vois <strong>6 listes d’emojis</strong>. Associe-les aux œuvres d’Alex.
-          {% endif %}
+            {% endif %}
         </h2>
+
+        {% if role == "A" %}
+            <a href="{% url 'lobby' team.uuid %}" class="btn btn-outline-secondary btn-sm">
+            ← Retour au lobby
+            </a>
+        {% endif %}
       </div>
 
       <div class="card-body">

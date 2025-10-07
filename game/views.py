@@ -1,6 +1,17 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_POST
-from .models import Team, Player
+from .models import Team, Player, TeamCode
+from django.http import JsonResponse
+from django.utils import timezone
+from django.urls import reverse
+
+PUZZLES = [
+    {"slug": "museum", "title": "Musée des œuvres", "code": "ARTE"},
+    # Exemples à activer plus tard :
+    # {"slug": "market", "title": "Marché du monde", "code": "SOUK"},
+    # {"slug": "streetfood", "title": "Street Food", "code": "NORI"},
+    # {"slug": "festival", "title": "Festival des cultures", "code": "BONGO"},
+]
 
 def _player(request, team):
     pid = request.session.get("player_id")
@@ -34,4 +45,73 @@ def lobby(request, team_uuid):
     player = _player(request, team)
     if not player:
         return redirect("start")
-    return render(request, "game/lobby.html", {"team": team, "player": player})
+
+    got_codes = {tc.puzzle_slug: tc.code for tc in TeamCode.objects.filter(team=team)}
+
+    puzzles = []
+    for p in PUZZLES:
+        enabled = (p["slug"] == "museum")
+        url = reverse("museum_puzzle", args=[team.uuid]) if enabled else "#"
+        puzzles.append({
+            "slug": p["slug"],
+            "title": p["title"],
+            "url": url,
+            "enabled": enabled,
+            "solved": (p["slug"] in got_codes),
+        })
+
+    need_count = len(PUZZLES)
+    slots = list(range(need_count))
+    found_codes = list(got_codes.values())
+
+    return render(request, "game/lobby.html", {
+        "team": team,
+        "player": player,
+        "puzzles": puzzles,
+        "need_count": need_count,
+        "slots": slots,
+        "found_codes": found_codes,
+    })
+
+@require_POST
+def lock_check_code(request, team_uuid):
+    team = get_object_or_404(Team, uuid=team_uuid)
+    player = _player(request, team)
+    if not player:
+        return JsonResponse({"ok": False, "error": "unauthorized"}, status=403)
+    code = (request.POST.get("code") or "").strip().upper()
+    team_codes = set(TeamCode.objects.filter(team=team).values_list("code", flat=True))
+    return JsonResponse({"ok": True, "match": code in team_codes})
+
+@require_POST
+def lock_validate_codes(request, team_uuid):
+    team = get_object_or_404(Team, uuid=team_uuid)
+    player = _player(request, team)
+    if not player:
+        return JsonResponse({"ok": False, "error": "unauthorized"}, status=403)
+
+    # codes[] ou codes_csv
+    raw = request.POST.getlist("codes")
+    if not raw:
+        raw = [c.strip() for c in (request.POST.get("codes_csv") or "").split(",") if c.strip()]
+    entered = [c.upper() for c in raw if c.strip()]
+
+    need = len(PUZZLES)
+    if len(entered) != need:
+        return JsonResponse({"ok": False, "error": "missing_or_extra", "need": need}, status=400)
+
+    team_codes = set(TeamCode.objects.filter(team=team).values_list("code", flat=True))
+    if len(team_codes) != need:
+        return JsonResponse({"ok": False, "error": "not_all_solved"}, status=400)
+
+    if set(entered) == team_codes:
+        if not team.finished_at:
+            team.finished_at = timezone.now()
+            team.save(update_fields=["finished_at"])
+        from comms.models import Message
+        Message.objects.create(team=team, player=None, text="🗝️ Coffre ouvert ! Bravo, toutes les épreuves sont réussies.")
+        return JsonResponse({"ok": True, "opened": True})
+    else:
+        return JsonResponse({"ok": True, "opened": False})
+
+

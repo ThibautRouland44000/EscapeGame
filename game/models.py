@@ -24,3 +24,12 @@ class Player(models.Model):
     role = models.CharField(max_length=1, choices=ROLES)
     is_host = models.BooleanField(default=False)
     last_seen = models.DateTimeField(default=timezone.now)
+
+class TeamCode(models.Model):
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="codes")
+    puzzle_slug = models.CharField(max_length=32)
+    code = models.CharField(max_length=32)
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("team", "puzzle_slug")
