@@ -10,66 +10,80 @@
 <div class="row g-3">
   <div class="col-lg-8">
     <div class="card shadow-sm">
-      <div class="card-header bg-white">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <h2 class="h5 mb-0">
-          {% if role == "A" %}Tu vois les <strong>6 œuvres</strong>. Décris-les à ton binôme.
-          {% else %}Tu vois <strong>6 listes d’emojis</strong>. Associe-les aux œuvres d’Alex.
-          {% endif %}
+            {% if role == "A" %}
+            Tu vois les <strong>6 œuvres</strong>. Décris-les à ton binôme.
+            {% else %}
+            Tu vois <strong>6 listes d’emojis</strong>. Associe-les aux œuvres d’Alex.
+            {% endif %}
         </h2>
+
+        {% if role == "A" %}
+            <a href="{% url 'lobby' team.uuid %}" class="btn btn-outline-secondary btn-sm">
+            ← Retour au lobby
+            </a>
+        {% endif %}
       </div>
+
       <div class="card-body">
         {% if feedback %}<div class="alert alert-warning">{{ feedback }}</div>{% endif %}
 
         {% if role == "A" %}
+          <!-- Images anonymisées : Œuvre 1..6 -->
           <div class="row row-cols-1 row-cols-md-2 g-3">
             {% for art in artworks %}
-            <div class="col">
-              <div class="border rounded p-2 h-100">
-                <div class="small text-muted mb-1">Œuvre {{ forloop.counter }}</div>
-                <img src="{% static art.img %}" alt="{{ art.title }}" class="img-fluid mb-2" onerror="this.style.display='none'">
-                <div class="fw-semibold">{{ art.title }}</div>
-                <div class="text-muted small">Décris à l’autre les indices (sujet, style, détails).</div>
+              <div class="col">
+                <div class="border rounded p-2 h-100">
+                  <div class="small text-muted mb-1">{{ art.label }}</div>
+                  <img src="{% static art.img %}" alt="{{ art.label }}" class="img-fluid mb-2" onerror="this.style.display='none'">
+                  <div class="text-muted small">Décris l’image (couleurs, éléments, style) à ton binôme.</div>
+                </div>
               </div>
-            </div>
             {% endfor %}
           </div>
 
         {% else %}
+          <!-- Listes d’emojis mélangées + selects “Œuvre 1..6” -->
           <form method="post" class="row g-3">
             {% csrf_token %}
-            {% for key, emojis in emoji_sets.items %}
-            <div class="col-12">
-              <label class="form-label">
-                <span class="badge text-bg-secondary me-2">{{ key }}</span>
-                {% for e in emojis %}<span style="font-size:1.2rem">{{ e }}</span>{% endfor %}
-              </label>
-              <select class="form-select" name="map_{{ key }}" required>
-                <option value="" selected disabled>Choisir l’œuvre…</option>
-                {% for art in artworks %}
-                  <option value="{{ art.slug }}">{{ art.title }}</option>
-                {% endfor %}
-              </select>
-            </div>
+            {% for item in emoji_list %}
+              <div class="col-12">
+                <label class="form-label">
+                  <span class="badge text-bg-secondary me-2">{{ item.key }}</span>
+                  {% for e in item.emojis %}<span style="font-size:1.2rem">{{ e }}</span>{% endfor %}
+                </label>
+                <select class="form-select" name="map_{{ item.key }}" required>
+                  <option value="" selected disabled>Choisir l’œuvre…</option>
+                  {% for art in artworks %}
+                    <option value="{{ art.slug }}">{{ art.label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
             {% endfor %}
             <div class="col-12 d-grid">
               <button class="btn btn-success">Valider les associations</button>
             </div>
           </form>
-          <p class="text-muted mt-2 mb-0 small">Astuce : demande à Alex : “L’emoji 🌊⛵🗻 correspond à quelle image ?”</p>
+          <p class="text-muted mt-2 mb-0 small">
+            Astuce : demande “Le paquet d’emojis 🌊⛵🗻 correspond à quelle image (Œuvre n°) ?”
+          </p>
         {% endif %}
       </div>
     </div>
   </div>
 
   <div class="col-lg-4">
-    <div class="card shadow-sm"><div class="card-body">
-      {% include "comms/_chat.html" with TEAM=team.uuid %}
-    </div></div>
+    <div class="card shadow-sm">
+      <div class="card-body">
+        {% include "../comms/_chat.html" with TEAM=team.uuid %}
+      </div>
+    </div>
   </div>
 </div>
 
 {% if success %}
-<!-- Overlay plein écran -->
+<!-- Overlay plein écran de succès -->
 <div id="successOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
      style="background:rgba(0,0,0,.5); z-index:1050;">
   <div class="bg-white rounded-4 p-4 text-center shadow-lg" style="max-width:420px; width:92%;">
@@ -96,10 +110,7 @@
 </div>
 
 <script>
-// Redirige automatiquement après 1,8 s
 setTimeout(function(){ window.location.href = "{{ next_url }}"; }, 1800);
-
-// Confettis ultra-légers (optionnel)
 (function(){
   const overlay = document.getElementById("successOverlay");
   for (let i=0; i<40; i++){

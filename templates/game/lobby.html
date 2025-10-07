@@ -1,15 +1,231 @@
-{% extends "game/base.html" %}{% block content %}
+{% extends "game/base.html" %}
+{% block content %}
+
+<style>
+/* Aspect métallique + animations du coffre */
+#safeSvg .steel       { fill: url(#steel); }
+#safeSvg .steel-dark  { fill: #2b3035; stroke: #495057; }
+#safeSvg .hinge       { fill: #b0b7c3; }
+#safeSvg .bolt        { fill: #8a93a6; }
+#safeSvg .stroke      { stroke: #212529; opacity:.12 }
+#safeSvg .wheel-part  { fill:#adb5bd; stroke:#6c757d; }
+#safeSvg .wheel-cap   { fill:#dee2e6; stroke:#6c757d; }
+#safeSvg .led-red     { fill:#dc3545; }
+#safeSvg .led-green   { fill:#28a745; }
+
+#safeSvg #wheel { transition: transform .35s ease; transform-box: fill-box; transform-origin: center; }
+#safeSvg #door  { transition: transform .6s ease; transform-box: fill-box; transform-origin: left center; }
+#safeSvg.opened #door { transform: rotate(-18deg) translateX(-6px); }
+#safeSvg.shake { animation: safe-shake .18s linear 2; }
+@keyframes safe-shake {
+  0% { transform: translateX(-4px); }
+  50% { transform: translateX(4px); }
+  100% { transform: translateX(0); }
+}
+</style>
+
 <div class="card shadow-sm"><div class="card-body">
-  <h1 class="h5 mb-2">Lobby — Code : <span class="badge text-bg-success">{{ team.code }}</span></h1>
+  <h1 class="h5 mb-3">
+    Lobby — Code : <span class="badge text-bg-success">{{ team.code }}</span>
+  </h1>
+
+  <!-- Joueurs -->
   <ul class="list-group mb-3">
     {% for p in team.players.all %}
-      <li class="list-group-item">{{ p.name }} ({{ p.get_role_display }}){% if p.is_host %} — host{% endif %}</li>
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <span>{{ p.name }} ({{ p.get_role_display }}){% if p.is_host %} — host{% endif %}</span>
+        <span class="badge rounded-pill {% if p.is_host %}text-bg-primary{% else %}text-bg-secondary{% endif %}">
+          connecté
+        </span>
+      </li>
     {% endfor %}
-    <a class="btn btn-outline-success mt-2" href="{% url 'museum_puzzle' team.uuid %}">
-        ➡️ Lancer l’épreuve du Musée
-    </a>
   </ul>
-  <hr>
+
+  <!-- Épreuves -->
+  <h2 class="h6">Épreuves</h2>
+  <div class="row g-2 mb-3">
+    {% for p in puzzles %}
+      <div class="col-md-6">
+        <div class="border rounded p-2 d-flex justify-content-between align-items-center">
+          <div>
+            <div class="fw-semibold">{{ p.title }}</div>
+            <div class="small text-muted">
+              {% if p.solved %}✅ Réussie{% else %}🔒 À faire{% endif %}
+              {% if not p.enabled %} • <em>à venir</em>{% endif %}
+            </div>
+          </div>
+          {% if p.enabled %}
+            <a class="btn btn-sm {% if p.solved %}btn-outline-success{% else %}btn-success{% endif %}"
+               href="{{ p.url }}">
+              {% if p.solved %}Revoir{% else %}Lancer{% endif %}
+            </a>
+          {% else %}
+            <button class="btn btn-sm btn-outline-secondary" disabled>Indispo</button>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <!-- Coffre-fort -->
+  <h2 class="h6 mt-3">Coffre final ({{ need_count }} codes)</h2>
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="border rounded p-3">
+        <div class="d-flex gap-2 flex-wrap" id="lockInputs">
+          {% for _ in slots %}
+            <input class="form-control form-control-sm codeInput" placeholder="Code {{ forloop.counter }}"
+                   maxlength="12" style="max-width:160px" />
+          {% endfor %}
+        </div>
+        <div class="mt-2 d-flex gap-2">
+          <button id="btnOpen" class="btn btn-primary btn-sm" disabled>Ouvrir le coffre</button>
+          <div id="lockMsg" class="small text-muted"></div>
+        </div>
+        {% if found_codes %}
+          <div class="small text-muted mt-2">Codes déjà gagnés : {{ found_codes|join:", " }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="d-flex justify-content-center align-items-center">
+        <!-- SAFE SVG -->
+        <svg id="safeSvg" viewBox="0 0 260 200" width="240" height="200">
+          <defs>
+            <linearGradient id="steel" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#8d99ae"/>
+              <stop offset="0.5" stop-color="#ced4da"/>
+              <stop offset="1" stop-color="#6c757d"/>
+            </linearGradient>
+          </defs>
+
+          <!-- corps -->
+          <rect x="10" y="20" width="240" height="160" rx="12" class="steel"/>
+          <!-- rivets -->
+          {% for x in "0,1,2,3,4"|cut:"," %}{% endfor %}
+          <circle class="bolt" cx="22" cy="32" r="3"/>
+          <circle class="bolt" cx="238" cy="32" r="3"/>
+          <circle class="bolt" cx="22" cy="178" r="3"/>
+          <circle class="bolt" cx="238" cy="178" r="3"/>
+
+          <!-- porte -->
+          <g id="door">
+            <rect x="32" y="34" width="196" height="132" rx="8" class="steel-dark"/>
+            <rect x="40" y="42" width="180" height="116" rx="6" fill="none" class="stroke" stroke-width="8"/>
+            <!-- LED -->
+            <circle id="led" cx="206" cy="52" r="6" class="led-red"/>
+            <!-- roue -->
+            <g id="wheel" transform="translate(0,0)">
+              <circle cx="160" cy="100" r="20" class="wheel-part"/>
+              <circle cx="160" cy="100" r="8" class="wheel-cap"/>
+              <!-- 6 rayons -->
+              <line x1="160" y1="82" x2="160" y2="94" stroke="#6c757d" stroke-width="2"/>
+              <line x1="160" y1="106" x2="160" y2="118" stroke="#6c757d" stroke-width="2"/>
+              <line x1="142" y1="100" x2="154" y2="100" stroke="#6c757d" stroke-width="2"/>
+              <line x1="166" y1="100" x2="178" y2="100" stroke="#6c757d" stroke-width="2"/>
+              <line x1="147" y1="87" x2="154" y2="94" stroke="#6c757d" stroke-width="2"/>
+              <line x1="166" y1="106" x2="173" y2="113" stroke="#6c757d" stroke-width="2"/>
+            </g>
+            <!-- poignée (option look) -->
+            <rect x="186" y="92" width="10" height="16" rx="3" fill="#adb5bd" stroke="#6c757d"/>
+          </g>
+
+          <!-- charnières -->
+          <rect x="28" y="46" width="6" height="28" class="hinge"/>
+          <rect x="28" y="92" width="6" height="28" class="hinge"/>
+          <rect x="28" y="138" width="6" height="28" class="hinge"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <hr class="my-3">
   {% include "comms/_chat.html" with TEAM=team.uuid %}
 </div></div>
+
+<script>
+(function(){
+  function getCookie(n){const m=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)');return m?m.pop():''}
+
+  const inputs = Array.from(document.querySelectorAll('.codeInput'));
+  const btnOpen = document.getElementById('btnOpen');
+  const msg = document.getElementById('lockMsg');
+
+  const safe = document.getElementById('safeSvg');
+  const door = document.getElementById('door');
+  const wheel = document.getElementById('wheel');
+  const led = document.getElementById('led');
+
+  let wheelAngle = 0;
+
+  function spinWheel(deg){
+    wheelAngle = (wheelAngle + deg) % 360;
+    wheel.style.transform = `rotate(${wheelAngle}deg)`;
+  }
+  function setLed(ok){
+    led.classList.toggle('led-green', ok);
+    led.classList.toggle('led-red', !ok);
+  }
+  function shake(){
+    safe.classList.remove('shake'); // restart anim
+    void safe.offsetWidth;
+    safe.classList.add('shake');
+  }
+
+  // check à la saisie
+  inputs.forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const code = inp.value.trim().toUpperCase();
+      if(!code){ inp.classList.remove('is-valid','is-invalid'); return; }
+      fetch("{% url 'lock_check' team.uuid %}", {
+        method: "POST",
+        headers: {"X-CSRFToken": getCookie("csrftoken"), "Content-Type":"application/x-www-form-urlencoded"},
+        body: new URLSearchParams({code})
+      })
+      .then(r=>r.json()).then(d=>{
+        if(d.ok && d.match){
+          inp.classList.add('is-valid'); inp.classList.remove('is-invalid');
+          setLed(true);  spinWheel(45);
+        } else {
+          inp.classList.add('is-invalid'); inp.classList.remove('is-valid');
+          setLed(false); shake();
+        }
+        btnOpen.disabled = !inputs.every(i=>i.value.trim().length>0);
+      })
+      .catch(()=>{ msg.textContent="Erreur réseau."; });
+    });
+  });
+
+  // ouverture du coffre
+  btnOpen.addEventListener('click', ()=>{
+    const codes = inputs.map(i=>i.value.trim().toUpperCase());
+    fetch("{% url 'lock_validate' team.uuid %}", {
+      method: "POST",
+      headers: {"X-CSRFToken": getCookie("csrftoken"), "Content-Type":"application/x-www-form-urlencoded"},
+      body: new URLSearchParams({ codes: codes })
+    })
+    .then(r=>r.json()).then(d=>{
+      if(d.ok && d.opened){
+        msg.textContent = "🗝️ Coffre ouvert !";
+        setLed(true);
+        // wheel spinning + porte qui s'entrouvre
+        spinWheel(360);
+        safe.classList.add('opened');
+      } else if(d.error === "not_all_solved") {
+        msg.textContent = "Il manque des codes (épreuves non terminées).";
+        setLed(false); shake();
+      } else if(d.error === "missing_or_extra"){
+        msg.textContent = "Nombre de codes incorrect ({{ need_count }} requis).";
+        setLed(false); shake();
+      } else {
+        msg.textContent = "Le set saisi ne correspond pas aux codes gagnés.";
+        setLed(false); shake();
+      }
+    })
+    .catch(()=>{ msg.textContent="Erreur réseau."; });
+  });
+})();
+</script>
+
 {% endblock %}
