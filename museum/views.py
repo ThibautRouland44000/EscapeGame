@@ -4,10 +4,18 @@ from django.views.decorators.http import require_http_methods
 from django.urls import reverse
 from game.models import Team, Player
 from comms.models import Message
+import random 
 
 def _player(request, team):
     pid = request.session.get("player_id")
     return Player.objects.filter(id=pid, team=team).first()
+
+def _stable_shuffle(seq, seed):
+    rng = random.Random(seed)
+    items = list(seq)
+    rng.shuffle(items)
+    return items
+
 
 # --- DATASET FIXE (6 œuvres : peintures + David) ---
 ARTWORKS = [
@@ -35,6 +43,61 @@ EXPECTED = {
     "D": "vague-kanagawa",
     "E": "montres-molles",
     "F": "fille-perle",
+}
+
+ARTWORKS = [
+    {"slug": "joconde",        "title": "La Joconde (Leonardo da Vinci)",               "img": "museum/joconde.png",        "img_full": "museum/full/joconde.png"},
+    {"slug": "nuit-etoilee",   "title": "La Nuit étoilée (Vincent van Gogh)",           "img": "museum/nuit-etoilee.png",    "img_full": "museum/full/nuit-etoilee.png"},
+    {"slug": "david",          "title": "David (Michel-Ange)",                           "img": "museum/david.png",           "img_full": "museum/full/david.png"},
+    {"slug": "vague-kanagawa", "title": "La Grande Vague de Kanagawa (Hokusai)",        "img": "museum/vague-kanagawa.png",  "img_full": "museum/full/vague-kanagawa.png"},
+    {"slug": "montres-molles", "title": "La Persistance de la mémoire (Salvador Dalí)", "img": "museum/montres-molles.png",  "img_full": "museum/full/montres-molles.png"},
+    {"slug": "fille-perle",    "title": "La Jeune Fille à la perle (Johannes Vermeer)", "img": "museum/fille-perle.png",     "img_full": "museum/full/fille-perle.png"},
+]
+
+# Fiches pédagogiques (slug → infos)
+ART_INFO = {
+    "joconde": {
+        "title": "La Joconde",
+        "artist": "Leonardo da Vinci",
+        "year": "c. 1503–1506",
+        "country": "Italie",
+        "note": "Portrait célèbre pour son sourire ‘énigmatique’ et l’usage du sfumato (dégradés doux)."
+    },
+    "nuit-etoilee": {
+        "title": "La Nuit étoilée",
+        "artist": "Vincent van Gogh",
+        "year": "1889",
+        "country": "Pays-Bas / France (Saint-Rémy)",
+        "note": "Ciel tourbillonnant, couleurs intenses : une vision émotionnelle plus que réaliste."
+    },
+    "david": {
+        "title": "David",
+        "artist": "Michel-Ange",
+        "year": "1501–1504",
+        "country": "Italie",
+        "note": "Sculpture en marbre de la Renaissance : idéal du corps humain et maîtrise anatomique."
+    },
+    "vague-kanagawa": {
+        "title": "La Grande Vague de Kanagawa",
+        "artist": "Katsushika Hokusai",
+        "year": "c. 1831",
+        "country": "Japon",
+        "note": "Estampe ukiyo-e : composition dynamique et perspective influençant l’art en Europe."
+    },
+    "montres-molles": {
+        "title": "La Persistance de la mémoire",
+        "artist": "Salvador Dalí",
+        "year": "1931",
+        "country": "Espagne / France",
+        "note": "Montres ‘molles’ : le temps devient subjectif, thème central du surréalisme."
+    },
+    "fille-perle": {
+        "title": "La Jeune Fille à la perle",
+        "artist": "Johannes Vermeer",
+        "year": "c. 1665",
+        "country": "Pays-Bas",
+        "note": "‘Tronie’ (étude de visage) : lumière douce et perle iconique sur fond sombre."
+    },
 }
 
 @require_http_methods(["GET","POST"])
@@ -75,17 +138,68 @@ def museum_puzzle(request, team_uuid):
                 team.save(update_fields=["score"])
                 feedback = "Ce n’est pas la bonne association. Discutez au chat et réessayez !"
 
-    # Contexte selon rôle
+        # ======= ORDRES DÉTERMINISTES PAR ÉQUIPE =======
+    # Mélange l'ordre des œuvres (images) et des paquets d'emojis
+    art_order = _stable_shuffle(list(range(len(ARTWORKS))), f"{team.uuid}-ART")
+    emo_order = _stable_shuffle(list(EMOJI_SETS.keys()), f"{team.uuid}-EMO")
+
+    # Construit une liste d'œuvres anonymisées pour l'affichage
+    # -> label = "Œuvre 1..6" dans l'ordre mélangé
+    artworks_display = []
+    for i, art_idx in enumerate(art_order):
+        art = ARTWORKS[art_idx]
+        artworks_display.append({
+            "slug": art["slug"],
+            "img":  art["img"],
+            "label": f"Œuvre {i+1}",
+        })
+
+    # Construit la liste des paquets d'emojis dans un ordre mélangé
+    emoji_list = [{"key": k, "emojis": EMOJI_SETS[k]} for k in emo_order]
+
+    # ======= CONTEXTE SELON RÔLE =======
+    next_ok = reverse("museum_debrief", args=[team.uuid])  # ← destination après succès
+
     base_ctx = {
         "team": team,
         "player": player,
         "feedback": feedback,
         "success": success,
-        "next_url": reverse("lobby", args=[team.uuid]),
+        "next_url": next_ok,
+        "artworks": artworks_display,
     }
+
     if player.role == "A":
-        ctx = {**base_ctx, "role": "A", "artworks": ARTWORKS, "emoji_sets": None}
+        ctx = {**base_ctx, "role": "A", "emoji_list": None}
     else:
-        ctx = {**base_ctx, "role": "B", "artworks": ARTWORKS, "emoji_sets": EMOJI_SETS}
+        ctx = {**base_ctx, "role": "B", "emoji_list": emoji_list}
 
     return render(request, "museum/puzzle.html", ctx)
+
+
+def museum_debrief(request, team_uuid):
+    team = get_object_or_404(Team, uuid=team_uuid)
+    player = _player(request, team)
+    if not player:
+        return redirect("start")
+    
+    items = []
+    for art in ARTWORKS:
+        slug = art["slug"]
+        info = ART_INFO[slug]
+        items.append({
+            "img_full": art.get("img_full", art["img"]),
+            "title": info["title"],
+            "artist": info["artist"],
+            "year": info["year"],
+            "country": info["country"],
+            "note": info["note"],
+        })
+
+    return render(request, "museum/debrief.html", {
+        "team": team,
+        "player": player,
+        "items": items,
+    })
+
+
