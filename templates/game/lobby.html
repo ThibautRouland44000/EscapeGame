@@ -5,6 +5,9 @@
     {% for p in team.players.all %}
       <li class="list-group-item">{{ p.name }} ({{ p.get_role_display }}){% if p.is_host %} — host{% endif %}</li>
     {% endfor %}
+    <a class="btn btn-outline-success mt-2" href="{% url 'museum_puzzle' team.uuid %}">
+        ➡️ Lancer l’épreuve du Musée
+    </a>
   </ul>
   <hr>
   {% include "comms/_chat.html" with TEAM=team.uuid %}
