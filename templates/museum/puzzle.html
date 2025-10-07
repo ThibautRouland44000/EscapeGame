@@ -67,4 +67,58 @@
     </div></div>
   </div>
 </div>
+
+{% if success %}
+<!-- Overlay plein écran -->
+<div id="successOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+     style="background:rgba(0,0,0,.5); z-index:1050;">
+  <div class="bg-white rounded-4 p-4 text-center shadow-lg" style="max-width:420px; width:92%;">
+    <!-- Check animé (SVG) -->
+    <svg viewBox="0 0 72 72" width="120" height="120" class="mb-3">
+      <circle cx="36" cy="36" r="34" fill="none" stroke="#28a745" stroke-width="4" opacity=".15"/>
+      <circle cx="36" cy="36" r="34" fill="none" stroke="#28a745" stroke-width="4"
+              stroke-dasharray="214" stroke-dashoffset="214">
+        <animate attributeName="stroke-dashoffset" from="214" to="0" dur="0.6s" fill="freeze"/>
+      </circle>
+      <polyline points="20,37 31,48 52,26" fill="none" stroke="#28a745" stroke-width="4"
+                stroke-linecap="round" stroke-linejoin="round"
+                stroke-dasharray="50" stroke-dashoffset="50">
+        <animate attributeName="stroke-dashoffset" from="50" to="0" dur="0.5s" begin="0.4s" fill="freeze"/>
+      </polyline>
+    </svg>
+
+    <h3 class="h5 mb-1">Bravo ! Épreuve du Musée réussie ✅</h3>
+    <p class="text-muted mb-3">Lettre <strong>« O »</strong> ajoutée à votre mot-clé.</p>
+
+    <a href="{{ next_url }}" class="btn btn-success">Continuer</a>
+    <div class="small text-muted mt-2">Redirection automatique…</div>
+  </div>
+</div>
+
+<script>
+// Redirige automatiquement après 1,8 s
+setTimeout(function(){ window.location.href = "{{ next_url }}"; }, 1800);
+
+// Confettis ultra-légers (optionnel)
+(function(){
+  const overlay = document.getElementById("successOverlay");
+  for (let i=0; i<40; i++){
+    const s = document.createElement("div");
+    s.style.position="fixed";
+    s.style.top="-10px";
+    s.style.left=(Math.random()*100)+"%";
+    s.style.width="6px"; s.style.height="10px";
+    s.style.background="hsl("+Math.floor(Math.random()*360)+" 90% 60%)";
+    s.style.opacity="0.9";
+    s.style.transform=`rotate(${Math.random()*360}deg)`;
+    s.style.borderRadius="1px";
+    s.style.zIndex="2000";
+    s.style.transition="transform 1.2s linear, top 1.2s linear, opacity .2s ease .9s";
+    overlay.appendChild(s);
+    requestAnimationFrame(()=>{ s.style.top="110%"; s.style.transform+=" translateY(100vh)"; s.style.opacity="0"; });
+  }
+})();
+</script>
+{% endif %}
+
 {% endblock %}

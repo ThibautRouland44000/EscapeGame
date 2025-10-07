@@ -1,32 +1,33 @@
+# museum/views.py
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_http_methods
+from django.urls import reverse
 from game.models import Team, Player
+from comms.models import Message
 
 def _player(request, team):
     pid = request.session.get("player_id")
     return Player.objects.filter(id=pid, team=team).first()
 
-# --- DATASET FIXE (toujours les mêmes) ---
-# 6 œuvres (slug, titre, fichier image dans static/museum/)
+# --- DATASET FIXE (6 œuvres : peintures + David) ---
 ARTWORKS = [
-    {"slug": "joconde", "title": "La Joconde (Leonardo da Vinci)", "img": "museum/joconde.png"},
-    {"slug": "nuit-etoilee", "title": "La Nuit étoilée (Van Gogh)", "img": "museum/nuit-etoilee.png"},
-    {"slug": "david", "title": "David (Michel-Ange)", "img": "museum/david.png"},
-    {"slug": "vague-kanagawa", "title": "La Grande Vague de Kanagawa (Hokusai)", "img": "museum/vague-kanagawa.png"},
-    {"slug": "montres-molles", "title": "La Persistance de la mémoire (Dalí)", "img": "museum/montres-molles.png"},
-    {"slug": "fille-perle", "title": "La Jeune Fille à la perle (Vermeer)", "img": "museum/fille-perle.png"},
+    {"slug": "joconde",        "title": "La Joconde (Leonardo da Vinci)",               "img": "museum/joconde.png"},
+    {"slug": "nuit-etoilee",   "title": "La Nuit étoilée (Vincent van Gogh)",           "img": "museum/nuit-etoilee.png"},
+    {"slug": "david",          "title": "David (Michel-Ange)",                           "img": "museum/david.png"},
+    {"slug": "vague-kanagawa", "title": "La Grande Vague de Kanagawa (Hokusai)",        "img": "museum/vague-kanagawa.png"},
+    {"slug": "montres-molles", "title": "La Persistance de la mémoire (Salvador Dalí)", "img": "museum/montres-molles.png"},
+    {"slug": "fille-perle",    "title": "La Jeune Fille à la perle (Johannes Vermeer)", "img": "museum/fille-perle.png"},
 ]
-# 6 listes d’emojis (toujours les mêmes) → à associer aux œuvres
-# Clés A..F pour l’interface côté B
+
 EMOJI_SETS = {
-    "A": ["🙂", "🔍", "🖼️"],          # Joconde — sourire énigmatique / chef-d’œuvre
-    "B": ["🌌", "✨", "🌙"],          # Nuit étoilée — ciel nocturne
-    "C": ["🗿", "💪", "🪨"],          # David — statue / force / marbre
-    "D": ["🌊", "⛵", "🗻"],          # Grande Vague — vague/bateaux/Fuji
-    "E": ["🕰️", "🫠", "🖼️"],          # Montres molles — horloges qui fondent
-    "F": ["👧", "💎", "🧕"],          # Fille à la perle — portrait/turban/boucle
+    "A": ["🙂", "🔍", "🖼️"],   # Joconde — sourire énigmatique / chef-d’œuvre
+    "B": ["🌌", "✨", "🌙"],   # Nuit étoilée — ciel nocturne
+    "C": ["🗿", "💪", "🪨"],   # David — statue / force / marbre
+    "D": ["🌊", "⛵", "🗻"],   # Grande Vague — vague / bateaux / Fuji
+    "E": ["🕰️", "🫠", "🖼️"],  # Montres molles — horloges qui fondent
+    "F": ["👧", "💎", "🧕"],   # Fille à la perle — portrait / perle / turban
 }
-# Mapping attendu EMO set -> slug œuvre
+
 EXPECTED = {
     "A": "joconde",
     "B": "nuit-etoilee",
@@ -44,7 +45,7 @@ def museum_puzzle(request, team_uuid):
         return redirect("start")
 
     feedback = None
-    ok = False
+    success = False  # flag pour l’overlay
 
     if request.method == "POST" and player.role == "B":
         # B envoie un mapping pour A..F → slug d’œuvre
@@ -57,37 +58,34 @@ def museum_puzzle(request, team_uuid):
             feedback = "Il manque des associations, complète tout 🙂"
         else:
             if answers == EXPECTED:
-                ok = True
-                # Avance la partie si tu veux chaîner les épreuves
+                success = True
+                # Progression + lettre (ex: “O”)
                 team.current_order += 1
-                # Optionnel: ajouter une lettre “O” à “OUVRE” par exemple
                 if "O" not in (team.letters or ""):
                     team.letters += "O"
                 team.save(update_fields=["current_order","letters"])
-                return redirect("lobby", team_uuid=team.uuid)
+
+                # Message “Système” dans le chat visible par les 2 joueurs
+                Message.objects.create(team=team, player=None,
+                                       text="🎉 Épreuve du Musée réussie !")
+
+                # Pas de redirect immédiat : l’overlay s’affiche dans le template
             else:
                 team.score = max(0, team.score - 1)
                 team.save(update_fields=["score"])
                 feedback = "Ce n’est pas la bonne association. Discutez au chat et réessayez !"
 
-    # Prépare l’affichage selon rôle
+    # Contexte selon rôle
+    base_ctx = {
+        "team": team,
+        "player": player,
+        "feedback": feedback,
+        "success": success,
+        "next_url": reverse("lobby", args=[team.uuid]),
+    }
     if player.role == "A":
-        context = {
-            "role": "A",
-            "artworks": ARTWORKS,  # A voit les 6 images (numérotées 1..6 visuellement)
-            "emoji_sets": None,
-            "feedback": feedback,
-            "team": team,
-            "player": player,
-        }
-    else:  # role B
-        # B voit les 6 paquets d’emojis avec des select d’œuvre
-        context = {
-            "role": "B",
-            "artworks": ARTWORKS,   # pour les options de select (titres)
-            "emoji_sets": EMOJI_SETS,
-            "feedback": feedback,
-            "team": team,
-            "player": player,
-        }
-    return render(request, "museum/puzzle.html", context)
+        ctx = {**base_ctx, "role": "A", "artworks": ARTWORKS, "emoji_sets": None}
+    else:
+        ctx = {**base_ctx, "role": "B", "artworks": ARTWORKS, "emoji_sets": EMOJI_SETS}
+
+    return render(request, "museum/puzzle.html", ctx)
