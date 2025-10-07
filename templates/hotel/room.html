@@ -21,6 +21,65 @@
 .tooltip-mini{position:absolute; right:6%; bottom:14%; background:#0006; color:#fff; padding:.25rem .5rem;
   border-radius:.25rem; font-size:.8rem; display:none}
 </style>
+<style>
+/* ==== Livre animé (manuel) ==== */
+.book-wrap{perspective:1200px; margin:0 auto 1rem;}
+.book{
+  position:relative; width:100%; max-width:740px; height:360px; margin:0 auto;
+  border-radius:14px; background:#f8f9fa; box-shadow:0 10px 25px rgba(0,0,0,.08) inset;
+}
+.book .pages{
+  position:absolute; inset:0; display:grid; grid-template-columns:1fr 1fr; gap:0;
+  border-radius:14px; overflow:hidden; background:linear-gradient(90deg,#fff 49.5%,#e9ecef 50%);
+}
+.book .page{
+  padding:18px 20px 16px; overflow:auto;
+}
+.book .page h4{ font-size:1rem; margin:.25rem 0 .5rem; }
+.book .page ul{ margin:0 0 .5rem 1rem; }
+.book .page li{ font-size:.9rem; line-height:1.25rem; margin:.25rem 0; }
+.book .spine{
+  position:absolute; left:50%; top:0; width:10px; height:100%;
+  transform:translateX(-50%); background:linear-gradient(#d0d4da,#c7ccd3);
+  box-shadow:inset 0 0 6px #adb5bd;
+}
+.book .bookmark{
+  position:absolute; right:16px; top:0; width:10px; height:46px; background:#ffbf69; border-radius:0 0 6px 6px;
+}
+
+/* Couverture animée */
+.book .cover{
+  position:absolute; left:0; top:0; width:50%; height:100%;
+  transform-origin:left center; transform:rotateY(0deg);
+  transition:transform .8s ease, box-shadow .8s ease;
+  border-radius:14px 0 0 14px;
+  background:linear-gradient(135deg,#3b5bdb,#74c0fc);
+  box-shadow:3px 0 10px rgba(0,0,0,.25);
+  color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer;
+}
+.book .cover .title{ text-align:center; padding:0 22px; }
+.book .cover .title .big{ font-size:1.15rem; font-weight:700; letter-spacing:.4px; display:block; }
+.book .cover .title .sub{ font-size:.9rem; opacity:.9; }
+.book .cover .hint{ position:absolute; bottom:12px; font-size:.8rem; opacity:.9; }
+
+.book.open .cover{
+  transform:rotateY(-165deg);
+  box-shadow:-6px 0 14px rgba(0,0,0,.15);
+}
+/* Pages cachées tant que le livre n'est pas ouvert */
+.book .pages{
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .35s ease;
+}
+.book.open .pages{
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Accessibilité & petits écrans */
+@media (max-width: 768px){ .book{ height:420px; } .book .page{ padding:14px; } }
+</style>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>🛏️ Épreuve — Chambre d’hôtel éco</div>
@@ -107,50 +166,65 @@
           </form>
 
         {% else %}
-          <!-- MANUEL (rôle B) -->
-          <div class="row g-3">
-            <div class="col-md-6">
-              <div class="border rounded p-2">
-                <div class="fw-semibold mb-2">🌦️ Saison</div>
-                <ul class="mb-0 small">
-                  <li>Été (ciel bleu + grand soleil) → <strong>clim à 24°</strong></li>
-                  <li>Automne (ciel gris + feuilles marron) → <strong>chauffage à 21°</strong></li>
-                  <li>Hiver (ciel gris/blanc + flocons) → <strong>chauffage à 19°</strong></li>
-                  <li>Printemps (ciel bleu + feuilles vertes) → <strong>éteindre clim/chauffage</strong></li>
-                </ul>
-              </div>
+          <!-- MANUEL (rôle B) — Livre qui s'ouvre -->
+            <div class="book-wrap">
+            <div id="manualBook" class="book" role="region" aria-label="Manuel d'économie d'énergie">
+                <!-- Couverture -->
+                <div class="cover" id="manualCover" tabindex="0" aria-expanded="false" aria-controls="manualPages">
+                <div class="title">
+                    <span class="big">Manuel d’économie d’énergie</span>
+                    <span class="sub">Chambre d’hôtel • Guide rapide</span>
+                </div>
+                <div class="hint">Cliquer / Entrée pour ouvrir</div>
+                </div>
+
+                <!-- Intérieur du livre -->
+                <div class="pages" id="manualPages">
+                <div class="spine"></div>
+                <div class="bookmark"></div>
+
+                <!-- Page gauche -->
+                <div class="page">
+                    <h4>🌦️ Saisons → réglage</h4>
+                    <ul>
+                    <li>Été <em>(ciel bleu + grand soleil)</em> → <strong>clim à 24°</strong></li>
+                    <li>Automne <em>(ciel gris + feuilles marron)</em> → <strong>chauffage à 21°</strong></li>
+                    <li>Hiver <em>(ciel gris/blanc + flocons)</em> → <strong>chauffage à 19°</strong></li>
+                    <li>Printemps <em>(ciel bleu + feuilles vertes)</em> → <strong>éteindre clim/chauffage</strong></li>
+                    </ul>
+
+                    <h4 class="mt-3">💡 Ampoules au plafond</h4>
+                    <ul>
+                    <li>1 = consommation <strong>importante</strong></li>
+                    <li>2 = consommation <strong>moyenne</strong></li>
+                    <li>3 et + = <strong>basse</strong> consommation</li>
+                    </ul>
+                </div>
+
+                <!-- Page droite -->
+                <div class="page">
+                    <h4>🚿 Label douche → durée</h4>
+                    <ul>
+                    <li>🍃 feuille verte = <strong>&lt; 5 minutes</strong></li>
+                    <li>🧍 bonhomme bleu = <strong>5 à 10 minutes</strong></li>
+                    <li>⭐️ étoile jaune = <strong>10 minutes et +</strong></li>
+                    </ul>
+
+                    <h4 class="mt-3">🪞 Type de miroir</h4>
+                    <div class="small mb-2">rond / rectangulaire / triangulaire</div>
+
+                    <h4>🚰 Type de robinet</h4>
+                    <div class="small">rouge / bleu / jaune</div>
+
+                    <hr>
+                    <p class="text-muted small mb-0">
+                    <strong>Astuce :</strong> demande à ton binôme d’ouvrir les rideaux et de décrire le ciel,
+                    puis ajuste clim / douche / lumière en conséquence.
+                    </p>
+                </div>
+                </div>
             </div>
-            <div class="col-md-6">
-              <div class="border rounded p-2">
-                <div class="fw-semibold mb-2">💡 Ampoules au plafond</div>
-                <ul class="mb-0 small">
-                  <li>1 = consommation <strong>importante</strong></li>
-                  <li>2 = consommation <strong>moyenne</strong></li>
-                  <li>3 et + = <strong>basse</strong> consommation</li>
-                </ul>
-              </div>
             </div>
-            <div class="col-md-6">
-              <div class="border rounded p-2">
-                <div class="fw-semibold mb-2">🚿 Label douche</div>
-                <ul class="mb-0 small">
-                  <li>🍃 feuille verte = <strong>&lt; 5 minutes</strong></li>
-                  <li>🧍 bonhomme bleu = <strong>5 à 10 minutes</strong></li>
-                  <li>⭐️ étoile jaune = <strong>10 minutes et +</strong></li>
-                </ul>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="border rounded p-2">
-                <div class="fw-semibold mb-2">🪞 Type de miroir</div>
-                <div class="small">rond / rectangulaire / triangulaire</div>
-                <hr>
-                <div class="fw-semibold mb-2">🚰 Type de robinet</div>
-                <div class="small">rouge / bleu / jaune</div>
-              </div>
-            </div>
-          </div>
-          <p class="text-muted small mt-3 mb-0">Guide ton binôme : demande-lui d’ouvrir les rideaux, de te décrire le ciel, le nombre d’ampoules, le label, etc.</p>
         {% endif %}
       </div>
     </div>
@@ -261,4 +335,27 @@ document.getElementById('lightSel').value = 'basse';
 </script>
 {% endif %}
 
+{% if role == "B" %}
+<script>
+(() => {
+  const book   = document.getElementById('manualBook');
+  const cover  = document.getElementById('manualCover');
+
+  function toggleBook(){
+    const open = book.classList.toggle('open');
+    cover.setAttribute('aria-expanded', open ? 'true' : 'false');
+    const hint = cover.querySelector('.hint');
+    if(hint){ hint.textContent = open ? "Cliquer pour fermer" : "Cliquer / Entrée pour ouvrir"; }
+  }
+
+  cover.addEventListener('click', toggleBook);
+  cover.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBook(); }
+  });
+})();
+</script>
+{% endif %}
+
 {% endblock %}
+
+
