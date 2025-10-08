@@ -29,40 +29,46 @@ def room_puzzle(request, team_uuid):
     success = False
 
     if request.method == "POST" and player.role == "A":
-        ac = (request.POST.get("ac") or "off").lower()     # "on"/"off"
-        shower = int(request.POST.get("shower") or 10)     # minutes
-        light = (request.POST.get("light") or "moyenne")   # "basse"/"moyenne"/"forte"
+        ac = (request.POST.get("ac") or "off").lower()            # "on" / "off"
+        shower = int(request.POST.get("shower") or 10)            # minutes
+        light = (request.POST.get("light") or "moyenne").lower()  # "basse"/"moyenne"/"forte"
 
-        ok_ac = (ac == "off")
-        ok_shower = (shower < 5)
-        ok_light = (light == "basse")
+        # température AC si présente
+        try:
+            ac_temp = int(request.POST.get("ac_temp")) if request.POST.get("ac_temp") else None
+        except (TypeError, ValueError):
+            ac_temp = None
+
+        # Nouvelles règles de réussite
+        ok_ac     = (ac == "on" and ac_temp == 23)
+        ok_shower = (shower <= 5)
+        ok_light  = (light == "basse")
 
         if ok_ac and ok_shower and ok_light:
             success = True
             team.current_order += 1
             team.save(update_fields=["current_order"])
 
-            # code gagné pour cette épreuve
             HOTEL_CODE = next(p["code"] for p in PUZZLES if p["slug"] == "hotel")
-            TeamCode.objects.get_or_create(team=team, puzzle_slug="hotel",
-                                           defaults={"code": HOTEL_CODE})
-            Message.objects.create(team=team, player=None,
-                                   text=f"🛏️ Épreuve Chambre réussie ! 🔐 Code obtenu : {HOTEL_CODE}")
+            TeamCode.objects.get_or_create(
+                team=team, puzzle_slug="hotel", defaults={"code": HOTEL_CODE}
+            )
+            Message.objects.create(
+                team=team, player=None,
+                text=f"🛏️ Épreuve Chambre réussie ! 🔐 Code obtenu : {HOTEL_CODE}"
+            )
         else:
-            bad = []
-            if not ok_ac: bad.append("clim sur OFF")
-            if not ok_shower: bad.append("douche < 5 min")
-            if not ok_light: bad.append("lumière sur BASSE")
-            feedback = "À corriger : " + ", ".join(bad)
+            # Message unique, quel que soit l'erreur
+            feedback = "Les réglages de la chambre d’hôtel sont incorrects."
 
-    # contexte commun
-    next_url = reverse("lobby", args=[team.uuid])  # ou une page debrief si tu veux en créer une
-    base_ctx = {"team": team, "player": player, "scene": SCENE, "success": success,
-                "feedback": feedback, "next_url": next_url}
-
-    if player.role == "A":
-        ctx = {**base_ctx, "role": "A"}
-    else:
-        # rôle B : manuel formaté
-        ctx = {**base_ctx, "role": "B"}
+    next_url = reverse("lobby", args=[team.uuid])
+    ctx = {
+        "team": team,
+        "player": player,
+        "scene": SCENE,
+        "success": success,
+        "feedback": feedback,
+        "next_url": next_url,
+        "role": "A" if player.role == "A" else "B",
+    }
     return render(request, "hotel/room.html", ctx)

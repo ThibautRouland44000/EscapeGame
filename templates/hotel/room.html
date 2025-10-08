@@ -4,7 +4,7 @@
 
 <style>
 .room-wrap{position:relative}
-.room-img{width:100%; border-radius:.5rem}
+.room-img{width:100%; border-radius:.5rem; transition:opacity .15s ease;}
 .clickable{cursor:pointer}
 .badge-floating{position:absolute; padding:.35rem .5rem; font-size:.75rem; border-radius:.5rem}
 #curtainsHit{position:absolute; left:6%; top:10%; width:55%; height:55%} /* zone rideaux/window */
@@ -79,6 +79,33 @@
 
 /* Accessibilité & petits écrans */
 @media (max-width: 768px){ .book{ height:420px; } .book .page{ padding:14px; } }
+
+/* Toast "ciel magnifique" */
+.toast-mini{
+  position:absolute; left:18%; top:12%;
+  background:rgba(0,0,0,.75); color:#fff;
+  padding:.4rem .6rem; border-radius:.4rem;
+  font-size:.85rem; opacity:0; transform:translateY(-6px);
+  transition:opacity .25s ease, transform .25s ease;
+  pointer-events:none; /* clics passent à travers */
+}
+.toast-mini.show{ opacity:1; transform:translateY(0); }
+/* Toast générique (position défini en inline dans le JS) */
+.toast-mini{
+  position:absolute;
+  background:rgba(0,0,0,.75);
+  color:#fff;
+  padding:.35rem .6rem;
+  border-radius:.4rem;
+  font-size:.85rem;
+  opacity:0;
+  transform:translateY(-6px);
+  transition:opacity .25s ease, transform .25s ease;
+  pointer-events:none;
+}
+.toast-mini.show{ opacity:1; transform:translateY(0); }
+/* pour pouvoir positionner un toast dans la zone des réglages */
+.controls{ position:relative; }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -103,26 +130,31 @@
 
         {% if role == "A" %}
           <!-- IMAGE INTERACTIVE -->
-          <div class="room-wrap mb-3">
-            <img src="{% static 'hotel/roomclosed.png' %}" class="room-img" alt="Chambre d'hôtel">
+        <div class="room-wrap mb-3">
+            <img id="roomImg"
+                class="room-img"
+                src="{% static 'hotel/room-closed.png' %}"
+                data-open="{% static 'hotel/room-open.png' %}"
+                data-closed="{% static 'hotel/room-closed.png' %}"
+                alt="Chambre d'hôtel">
 
-            <!-- saison visible quand on écarte les rideaux -->
-            <div id="windowOverlay"></div>
-
-            <!-- zones cliquables -->
+            <!-- rideaux -->
             <div id="curtainsHit" class="clickable" title="Cliquer pour écarter les rideaux"></div>
+
             <!-- miroir -->
             <div id="mirrorHit" class="clickable" title="Miroir"
-                 style="position:absolute; right:9.5%; top:24%; width:18%; height:30%;"></div>
-            <!-- label douche (emoji) -->
-            <div id="labelBadge" class="badge-floating bg-light border zoom-label clickable" title="Voir le label">
-              {% if scene.label == 'feuille' %}🍃{% elif scene.label == 'bonhomme' %}🧍{% else %}⭐️{% endif %}
-            </div>
+                style="position:absolute; right:9.5%; top:24%; width:18%; height:30%;"></div>
+
+            <!-- 🛁 ZONE DOUCHE (nouveau hitbox) -->
+            <div id="showerHit" class="clickable" title="Douche"
+                style="position:absolute; right:30%; top:18%; width:22%; height:46%;"></div>
+
             <!-- robinet -->
             <div id="tapHit" class="clickable" title="Robinet"
-                 style="position:absolute; right:7.5%; bottom:28%; width:9%; height:10%;"></div>
+                style="position:absolute; right:7.5%; bottom:28%; width:9%; height:10%;"></div>
             <div id="tapTip" class="tooltip-mini">C’est juste un robinet.</div>
-          </div>
+        </div>
+
 
           <!-- RÉGLAGES -->
           <form method="post" class="controls">
@@ -131,12 +163,26 @@
               <div class="col-md-4">
                 <label class="form-label">Climatisation</label>
                 <div class="btn-group w-100" role="group" aria-label="AC">
-                  <input type="radio" class="btn-check" name="ac" id="ac_off" value="off" checked>
-                  <label class="btn btn-outline-danger" for="ac_off">OFF</label>
-                  <input type="radio" class="btn-check" name="ac" id="ac_on" value="on">
-                  <label class="btn btn-outline-success" for="ac_on">ON (24°)</label>
+                    <input type="radio" class="btn-check" name="ac" id="ac_off" value="off" checked>
+                    <label class="btn btn-outline-danger" for="ac_off">OFF</label>
+
+                    <input type="radio" class="btn-check" name="ac" id="ac_on" value="on">
+                    <label class="btn btn-outline-success" for="ac_on">ON (24°)</label>
                 </div>
-              </div>
+
+                <!-- Curseur température (12–26°) — caché si OFF -->
+                <div id="acTempWrap" class="mt-2" style="display:none;">
+                    <label class="form-label">
+                    Température (°C)
+                    <span id="acTempVal" class="badge text-bg-secondary ms-1">24°</span>
+                    </label>
+                    <input type="range" min="12" max="26" value="24" id="acTemp"
+                        class="form-range" name="ac_temp">
+                    <div class="progress progress-sm">
+                    <div id="acTempBar" class="progress-bar" style="width:85%"></div>
+                    </div>
+                </div>
+            </div>
 
               <div class="col-md-4">
                 <label class="form-label">Douche (minutes)
@@ -152,11 +198,10 @@
               <div class="col-md-4">
                 <label class="form-label">Lumière</label>
                 <select class="form-select" name="light" id="lightSel">
-                  <option value="basse">Basse (3+ ampoules)</option>
-                  <option value="moyenne" selected>Moyenne (2)</option>
-                  <option value="forte">Forte (1)</option>
+                  <option value="basse">Basse</option>
+                  <option value="moyenne" selected>Moyenne</option>
+                  <option value="forte">Forte</option>
                 </select>
-                <div class="small text-muted mt-1">Au plafond : {{ scene.bulbs }} ampoules → basse conso</div>
               </div>
 
               <div class="col-12 d-grid">
@@ -263,98 +308,176 @@
 
 {% if role == "A" %}
 <script>
-// Rideaux → afficher la saison
-const windowOverlay = document.getElementById('windowOverlay');
+// ---------- Références ----------
+const roomImg     = document.getElementById('roomImg');
+const roomWrap    = document.querySelector('.room-wrap');
 const curtainsHit = document.getElementById('curtainsHit');
-const mirrorHit = document.getElementById('mirrorHit');
-const labelBadge = document.getElementById('labelBadge');
-const tapHit = document.getElementById('tapHit');
-const tapTip = document.getElementById('tapTip');
+const mirrorHit   = document.getElementById('mirrorHit');
+const showerHit   = document.getElementById('showerHit');
+const tapHit      = document.getElementById('tapHit');
+const tapTip      = document.getElementById('tapTip');
 
+const openSrc   = roomImg?.dataset.open;
+const closedSrc = roomImg?.dataset.closed;
 let curtainsOpen = false;
-curtainsHit.addEventListener('click', ()=>{
-  curtainsOpen = !curtainsOpen;
-  if(curtainsOpen){
-    // “ouvrir” : montrer la saison (printemps)
-    windowOverlay.style.display = 'block';
-    windowOverlay.style.background = 'linear-gradient(#86e1ff,#dff8ff)';
-    // ajoute quelques “feuilles” (printemps)
-    windowOverlay.innerHTML = '';
-    for(let i=0;i<6;i++){
-      const s=document.createElement('div');
-      s.textContent='🍃'; s.style.position='absolute';
-      s.style.left=(10+Math.random()*80)+'%';
-      s.style.top=(-10+Math.random()*20)+'%';
-      s.style.transition='top 1.4s linear'; windowOverlay.appendChild(s);
-      requestAnimationFrame(()=>{s.style.top='90%';});
+
+// précharger l'image "ouverte"
+if (openSrc){ const _pre = new Image(); _pre.src = openSrc; }
+
+// ---------- Toast rideaux ----------
+let curtainToastTimer = null;
+function showCurtainToast(text){
+  let t = document.getElementById('curtainToast');
+  if(!t){
+    t = document.createElement('div');
+    t.id = 'curtainToast';
+    t.className = 'toast-mini';
+    t.style.left = '18%';
+    t.style.top  = '12%';
+    roomWrap.appendChild(t);
+  }
+  t.textContent = text;
+  t.classList.add('show');
+  clearTimeout(curtainToastTimer);
+  curtainToastTimer = setTimeout(()=> t.classList.remove('show'), 5000);
+}
+
+// toggle image rideaux
+if (curtainsHit && roomImg){
+  curtainsHit.addEventListener('click', ()=>{
+    curtainsOpen = !curtainsOpen;
+    roomImg.style.opacity = '0';
+    setTimeout(()=>{ roomImg.src = curtainsOpen ? openSrc : closedSrc; }, 120);
+    roomImg.addEventListener('load', ()=>{
+      roomImg.style.opacity = '1';
+      if(curtainsOpen){ showCurtainToast('Le ciel est magnifique dehors ✨'); }
+      else { document.getElementById('curtainToast')?.classList.remove('show'); }
+    }, { once:true });
+  });
+}
+
+// ---------- Miroir → compliment + jauge ----------
+if (mirrorHit){
+  mirrorHit.addEventListener('click', ()=>{
+    const bar = document.getElementById('selfBar');
+    if(!bar){
+      const wrap = document.createElement('div');
+      wrap.className = 'mt-2';
+      wrap.innerHTML = `
+        <div class="small text-muted">Confiance en soi</div>
+        <div class="progress progress-sm"><div id="selfBar" class="progress-bar" style="width:25%"></div></div>
+        <div class="small">Vous vous trouvez très beau aujourd’hui ✨</div>`;
+      document.querySelector('.controls')?.prepend(wrap);
+    }else{
+      const cur = parseInt(bar.style.width)||25;
+      bar.style.width = Math.min(100, cur+25)+'%';
     }
-  }else{
-    windowOverlay.style.display = 'none';
-    windowOverlay.innerHTML = '';
+  });
+}
+
+// ---------- Robinet → tooltip ----------
+if (tapHit){
+  tapHit.addEventListener('click', ()=>{
+    tapTip.style.display='block';
+    setTimeout(()=>{tapTip.style.display='none';}, 1200);
+  });
+}
+
+// ---------- Douche (zone image) → toast près de la douche ----------
+function showShowerToastRoom(text){
+  let t = document.getElementById('showerToastRoom');
+  if(!t){
+    t = document.createElement('div');
+    t.id = 'showerToastRoom';
+    t.className = 'toast-mini';
+    t.style.right = '28%';
+    t.style.top   = '22%';
+    roomWrap.appendChild(t);
   }
-});
+  t.textContent = text;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=> t.classList.remove('show'), 2000);
+}
+if (showerHit){
+  showerHit.addEventListener('click', ()=> showShowerToastRoom('Tout propre, tout neuf ✨'));
+}
 
-// Miroir → compliment + jauge
-mirrorHit.addEventListener('click', ()=>{
-  const bar = document.getElementById('selfBar');
-  if(!bar){
-    const wrap = document.createElement('div');
-    wrap.className = 'mt-2';
-    wrap.innerHTML = `
-      <div class="small text-muted">Confiance en soi</div>
-      <div class="progress progress-sm"><div id="selfBar" class="progress-bar" style="width:25%"></div></div>
-      <div class="small">Vous vous trouvez très beau aujourd’hui ✨</div>`;
-    document.querySelector('.controls')?.prepend(wrap);
-  }else{
-    const cur = parseInt(bar.style.width)||25;
-    bar.style.width = Math.min(100, cur+25)+'%';
-  }
-});
+// ---------- Slider Douche : UI live ----------
+const controls   = document.querySelector('.controls');
+const shower     = document.getElementById('shower');
+const showerVal  = document.getElementById('showerVal');
+const showerBar  = document.getElementById('showerBar');
+function updShower(){
+  if(!shower) return;
+  showerVal.textContent = shower.value;
+  showerBar.style.width = (shower.value/15*100)+'%';
+}
+if (shower){ shower.addEventListener('input', updShower); updShower(); }
 
-// Label → zoom
-labelBadge.addEventListener('click', ()=>{
-  labelBadge.style.transform = 'scale(1.6)';
-  setTimeout(()=>{labelBadge.style.transform='scale(1)';}, 500);
-});
+// ---------- Clim : curseur température visible seulement si ON ----------
+const acOff       = document.getElementById('ac_off');
+const acOn        = document.getElementById('ac_on');
+const acTempWrap  = document.getElementById('acTempWrap');
+const acTemp      = document.getElementById('acTemp');
+const acTempVal   = document.getElementById('acTempVal');
+const acTempBar   = document.getElementById('acTempBar');
 
-// Robinet → tooltip
-tapHit.addEventListener('click', ()=>{
-  tapTip.style.display='block';
-  setTimeout(()=>{tapTip.style.display='none';}, 1200);
-});
+function updateAcTempUI(){
+  if(!acTemp || !acTempVal || !acTempBar) return;
+  acTempVal.textContent = acTemp.value + '°';
+  const pct = ((acTemp.value - 12) / (26 - 12)) * 100; // 12 -> 0%, 26 -> 100%
+  acTempBar.style.width = pct + '%';
+}
+function toggleAcTemp(){
+  const isOn = !!acOn?.checked;
+  if(acTempWrap) acTempWrap.style.display = isOn ? '' : 'none';
+}
+acOn?.addEventListener('change', toggleAcTemp);
+acOff?.addEventListener('change', toggleAcTemp);
+acTemp?.addEventListener('input', updateAcTempUI);
+updateAcTempUI();
+toggleAcTemp();
 
-// UI live
-const shower = document.getElementById('shower');
-const showerVal = document.getElementById('showerVal');
-const showerBar = document.getElementById('showerBar');
-function upd(){ showerVal.textContent = shower.value; showerBar.style.width = (shower.value/15*100)+'%'; }
-shower.addEventListener('input', upd); upd();
-
-// Adapter la lumière par défaut en fonction des ampoules (3+ → basse)
-document.getElementById('lightSel').value = 'basse';
+// ---------- Lumière par défaut ----------
+const lightSel = document.getElementById('lightSel');
+if (lightSel) lightSel.value = 'basse';
 </script>
 {% endif %}
 
 {% if role == "B" %}
 <script>
 (() => {
-  const book   = document.getElementById('manualBook');
-  const cover  = document.getElementById('manualCover');
+  const book  = document.getElementById('manualBook');
+  const cover = document.getElementById('manualCover');
+  if (!book || !cover) return;
+
+  // état initial : fermé
+  book.classList.remove('open');
+  cover.setAttribute('aria-expanded', 'false');
+
+  const hint = cover.querySelector('.hint');
+  if (hint) hint.textContent = "Cliquer / Entrée pour ouvrir";
 
   function toggleBook(){
     const open = book.classList.toggle('open');
-    cover.setAttribute('aria-expanded', open ? 'true' : 'false');
-    const hint = cover.querySelector('.hint');
-    if(hint){ hint.textContent = open ? "Cliquer pour fermer" : "Cliquer / Entrée pour ouvrir"; }
+    cover.setAttribute('aria-expanded', String(open));
+    if (hint) hint.textContent = open ? "Cliquer pour fermer" : "Cliquer / Entrée pour ouvrir";
   }
 
   cover.addEventListener('click', toggleBook);
-  cover.addEventListener('keydown', (e)=>{
-    if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBook(); }
+  cover.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggleBook();
+    }
   });
 })();
 </script>
 {% endif %}
+
+
+
 
 {% endblock %}
 
