@@ -1,0 +1,358 @@
+{% extends "game/base.html" %}
+{% load static %}
+{% block content %}
+
+<style>
+.map-wrap{position:relative; width:100%; border-radius:.5rem; overflow:hidden;}
+.map-img{width:100%; display:block;}
+.city{
+  position:absolute; transform:translate(-50%,-50%); cursor:pointer;
+  background:#0d6efd; color:#fff; width:14px; height:14px; border-radius:50%;
+  border:2px solid #fff; box-shadow:0 0 0 2px rgba(13,110,253,.2);
+}
+.city:hover{ transform:translate(-50%,-50%) scale(1.15); }
+.city-label{
+  position:absolute; transform:translate(-50%,-100%); white-space:nowrap;
+  background:#00000099; color:#fff; font-size:.75rem; padding:.1rem .3rem; border-radius:.25rem; pointer-events:none;
+}
+#mapSvg{position:absolute; inset:0; pointer-events:none;}
+.progress-sm{height:.5rem}
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>🚄 Épreuve — Tour d’Europe éco</div>
+  <div>⭐ Score: {{ team.score }}</div>
+</div>
+
+<div class="row g-3">
+  <!-- Colonne principale -->
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h2 class="h6 mb-0">
+          {% if role == "A" %}Aide ton binôme avec les <strong>CO₂ par trajet</strong>. Objectif : ≥ {{ min_cities }} villes et ≤ {{ budget }} CO₂.
+          {% else %}Clique les villes pour créer un itinéraire (≥ {{ min_cities }}) et reste sous <strong>{{ budget }}</strong> CO₂.
+          {% endif %}
+        </h2>
+        <a href="{% url 'lobby' team.uuid %}" class="btn btn-outline-secondary btn-sm">← Lobby</a>
+      </div>
+
+      <div class="card-body">
+        {% if feedback %}<div class="alert alert-warning mb-3">{{ feedback }}</div>{% endif %}
+
+        {% if role == "A" %}
+        <!-- PANNEAU CÔTÉ A : construction d'itinéraire + barre CO₂ -->
+        <div class="mb-3">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-7">
+              <label class="form-label">CO₂ total (côté A)</label>
+              <div class="d-flex align-items-center gap-2">
+                <div class="progress progress-sm w-100">
+                  <div id="co2BarA" class="progress-bar" style="width:0%"></div>
+                </div>
+                <span id="co2LabelA" class="badge text-bg-secondary">0 / {{ budget }}</span>
+              </div>
+              <div class="small text-muted mt-1">Seuil à ne pas dépasser : {{ budget }}</div>
+            </div>
+            <div class="col-md-5 text-md-end">
+              <button type="button" id="addLeg" class="btn btn-outline-primary btn-sm">Ajouter une étape</button>
+              <button type="button" id="clearLegs" class="btn btn-outline-danger btn-sm">Réinitialiser</button>
+            </div>
+          </div>
+
+          <div id="legs" class="mt-3"></div>
+
+          <div class="mt-3 small">
+            Itinéraire à transmettre à B :
+            <code id="itinStr">—</code>
+            <button type="button" id="copyItin" class="btn btn-link btn-sm">Copier</button>
+            <div id="aWarn" class="text-danger small mt-1 d-none">❗ Étape(s) sans liaison directe.</div>
+          </div>
+        </div>
+
+        <!-- Données pour JS -->
+        <script id="cities_json" type="application/json">{{ cities|safe }}</script>
+        <script id="edges_json"  type="application/json">{{ edges|safe }}</script>
+        <script>
+        (() => {
+          const cities = JSON.parse(document.getElementById('cities_json').textContent);
+          const edges  = JSON.parse(document.getElementById('edges_json').textContent);
+          const BUDGET = {{ budget }};
+
+          // Graphe
+          const G = {};
+          edges.forEach(e => {
+            G[e.a] = G[e.a] || {}; G[e.b] = G[e.b] || {};
+            G[e.a][e.b] = e.co2; G[e.b][e.a] = e.co2;
+          });
+          const cityOptions = cities.map(c => `<option value="${c.code}">${c.name} (${c.code})</option>`).join('');
+
+          const legsWrap  = document.getElementById('legs');
+          const co2BarA   = document.getElementById('co2BarA');
+          const co2LblA   = document.getElementById('co2LabelA');
+          const itinStr   = document.getElementById('itinStr');
+          const aWarn     = document.getElementById('aWarn');
+
+          function edgeCost(a,b){ return (G[a] && G[a][b]) || null; }
+
+          function makeLeg(){
+            const row = document.createElement('div');
+            row.className = 'row g-2 align-items-center mb-2 leg';
+            row.innerHTML = `
+              <div class="col">
+                <select class="form-select form-select-sm fromSel">
+                  <option value="" disabled selected>Ville de départ</option>
+                  ${cityOptions}
+                </select>
+              </div>
+              <div class="col">
+                <select class="form-select form-select-sm toSel">
+                  <option value="" disabled selected>Ville d’arrivée</option>
+                  ${cityOptions}
+                </select>
+              </div>
+              <div class="col-auto">
+                <button type="button" class="btn btn-outline-secondary btn-sm rmBtn" title="Retirer">×</button>
+              </div>
+              <div class="col-12 small text-danger d-none invalidMsg">Pas de liaison directe.</div>
+            `;
+            row.querySelectorAll('select').forEach(s => s.addEventListener('change', recalc));
+            row.querySelector('.rmBtn').addEventListener('click', ()=>{ row.remove(); recalc(); });
+            legsWrap.appendChild(row);
+          }
+
+          function recalc(){
+            let total = 0;
+            let seq = [];          // reconstruit PAR,BRU,AMS,...
+            let hasInvalid = false;
+
+            const legs = Array.from(legsWrap.querySelectorAll('.leg'));
+            let firstFromAdded = false;
+
+            legs.forEach(row=>{
+              const from = row.querySelector('.fromSel').value;
+              const to   = row.querySelector('.toSel').value;
+              const invalidMsg = row.querySelector('.invalidMsg');
+              invalidMsg.classList.add('d-none');
+
+              if(from && to){
+                if(!firstFromAdded){ seq.push(from); firstFromAdded = true; }
+                const cost = edgeCost(from, to);
+                if(cost == null){
+                  hasInvalid = true;
+                  invalidMsg.classList.remove('d-none');
+                }else{
+                  total += cost;
+                }
+                seq.push(to);
+              }
+            });
+
+            // Barre
+            const pct = Math.min(100, BUDGET ? Math.round(total/BUDGET*100) : 0);
+            co2BarA.style.width = pct + '%';
+            co2BarA.classList.toggle('bg-danger', total > BUDGET);
+            co2LblA.textContent = `${total} / ${BUDGET}`;
+            aWarn.classList.toggle('d-none', !hasInvalid);
+
+            // Itinéraire texte
+            itinStr.textContent = seq.length ? seq.join(',') : '—';
+          }
+
+          document.getElementById('addLeg').addEventListener('click', ()=>{ makeLeg(); });
+          document.getElementById('clearLegs').addEventListener('click', ()=>{ legsWrap.innerHTML=''; recalc(); });
+          document.getElementById('copyItin').addEventListener('click', async ()=>{
+            try{
+              await navigator.clipboard.writeText(itinStr.textContent);
+              const btn = document.getElementById('copyItin');
+              const old = btn.textContent; btn.textContent='Copié !';
+              setTimeout(()=> btn.textContent = old, 900);
+            }catch(e){}
+          });
+
+          // Démarrage avec 1 étape vide
+          makeLeg();
+          recalc();
+        })();
+        </script>
+
+        {% else %}
+        <!-- CÔTÉ B : Carte seule (pas de barre CO₂ ici) -->
+        <div class="map-wrap mb-3" id="mapWrap">
+          <img src="{% static 'rail/eu-map.png' %}" class="map-img" alt="Carte d'Europe">
+          <svg id="mapSvg"></svg>
+        </div>
+
+        <form method="post" class="controls">
+          {% csrf_token %}
+          <input type="hidden" name="itinerary" id="itineraryInput" value="">
+
+          <div class="d-flex flex-wrap gap-2 justify-content-end mb-2">
+            <button type="button" id="undoBtn" class="btn btn-outline-secondary">Annuler dernier</button>
+            <button type="button" id="resetBtn" class="btn btn-outline-danger">Réinitialiser</button>
+            <button class="btn btn-success">Valider l’itinéraire</button>
+          </div>
+          <div class="small text-muted">Astuce : clique une première ville (départ), puis enchaîne les liaisons.</div>
+        </form>
+
+        <!-- Données pour JS -->
+        <script id="cities_json" type="application/json">{{ cities|safe }}</script>
+        <script id="edges_json"  type="application/json">{{ edges|safe }}</script>
+        <script>
+        (() => {
+          const cities = JSON.parse(document.getElementById('cities_json').textContent);
+          const edges  = JSON.parse(document.getElementById('edges_json').textContent);
+
+          const G = {};
+          edges.forEach(e=>{
+            G[e.a] = G[e.a] || {}; G[e.b] = G[e.b] || {};
+            G[e.a][e.b] = e.co2; G[e.b][e.a] = e.co2;
+          });
+
+          const wrap   = document.getElementById('mapWrap');
+          const svg    = document.getElementById('mapSvg');
+          const itinInput = document.getElementById('itineraryInput');
+          const resetBtn  = document.getElementById('resetBtn');
+          const undoBtn   = document.getElementById('undoBtn');
+
+          let path = []; // séquence de codes villes (B compose et soumet)
+
+          // Place les villes
+          cities.forEach(c=>{
+            const dot = document.createElement('div');
+            dot.className = 'city';
+            dot.style.left = c.x+'%';
+            dot.style.top  = c.y+'%';
+            dot.dataset.code = c.code;
+            dot.title = `${c.name} (${c.code})`;
+            wrap.appendChild(dot);
+
+            const lab = document.createElement('div');
+            lab.className='city-label';
+            lab.textContent = c.name;
+            lab.style.left = c.x+'%';
+            lab.style.top  = (c.y-2)+'%';
+            wrap.appendChild(lab);
+
+            dot.addEventListener('click', ()=> onCityClick(c.code));
+          });
+
+          function edgeCost(a,b){
+            return (G[a] && G[a][b]) || null;
+          }
+
+          function draw(){
+            svg.innerHTML = '';
+            svg.setAttribute('viewBox','0 0 '+wrap.clientWidth+' '+wrap.clientHeight);
+            svg.setAttribute('preserveAspectRatio','none');
+
+            const pos = {};
+            cities.forEach(c=>{
+              pos[c.code] = {
+                x: wrap.clientWidth * (c.x/100),
+                y: wrap.clientHeight* (c.y/100),
+              };
+            });
+
+            for(let i=0;i<path.length-1;i++){
+              const a = pos[path[i]], b = pos[path[i+1]];
+              if(!a||!b) continue;
+              const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+              line.setAttribute('x1', a.x);
+              line.setAttribute('y1', a.y);
+              line.setAttribute('x2', b.x);
+              line.setAttribute('y2', b.y);
+              line.setAttribute('stroke','#198754');
+              line.setAttribute('stroke-width','4');
+              line.setAttribute('stroke-linecap','round');
+              line.setAttribute('opacity','0.9');
+              svg.appendChild(line);
+            }
+          }
+
+          function toast(msg){
+            const t = document.createElement('div');
+            t.className='toast-mini';
+            t.textContent = msg;
+            t.style.position='absolute';
+            t.style.right='12px'; t.style.bottom='12px';
+            t.style.background='rgba(0,0,0,.75)'; t.style.color='#fff';
+            t.style.padding='.35rem .6rem'; t.style.borderRadius='.4rem';
+            t.style.opacity='0'; t.style.transform='translateY(6px)';
+            t.style.transition='opacity .2s ease, transform .2s ease';
+            wrap.appendChild(t);
+            requestAnimationFrame(()=>{ t.style.opacity='1'; t.style.transform='translateY(0)'; });
+            setTimeout(()=>{ t.style.opacity='0'; t.style.transform='translateY(6px)'; setTimeout(()=> t.remove(), 180); }, 1500);
+          }
+
+          function updateUI(){
+            itinInput.value = path.join(',');
+            draw();
+          }
+
+          function onCityClick(code){
+            if(path.length===0){
+              path.push(code);
+              toast('Départ : '+code);
+            }else{
+              const last = path[path.length-1];
+              if(code===last){ return; }
+              const cost = edgeCost(last, code);
+              if(cost==null){
+                toast('Pas de liaison directe entre '+last+' et '+code);
+                return;
+              }
+              path.push(code);
+              toast('Étape ajoutée');
+            }
+            updateUI();
+          }
+
+          resetBtn.addEventListener('click', ()=>{ path=[]; updateUI(); });
+          undoBtn.addEventListener('click', ()=>{
+            if(path.length<=1){ path=[]; updateUI(); return; }
+            path.pop(); updateUI();
+          });
+
+          updateUI();
+          window.addEventListener('resize', draw);
+        })();
+        </script>
+        {% endif %}
+      </div> <!-- /card-body -->
+    </div> <!-- /card -->
+  </div> <!-- /col-lg-8 -->
+
+  <!-- Colonne Chat (droite) -->
+  <div class="col-lg-4">
+    <div class="card shadow-sm position-sticky" style="top:.75rem;">
+      <div class="card-body">
+        {% include "comms/_chat.html" with TEAM=team.uuid %}
+      </div>
+    </div>
+  </div>
+</div> <!-- /row -->
+
+{% if success %}
+<div id="successOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+     style="background:rgba(0,0,0,.5); z-index:1050;">
+  <div class="bg-white rounded-4 p-4 text-center shadow-lg" style="max-width:420px; width:92%;">
+    <svg viewBox="0 0 72 72" width="120" height="120" class="mb-3">
+      <circle cx="36" cy="36" r="34" fill="none" stroke="#28a745" stroke-width="4" opacity=".15"/>
+      <circle cx="36" cy="36" r="34" fill="none" stroke="#28a745" stroke-width="4" stroke-dasharray="214" stroke-dashoffset="214">
+        <animate attributeName="stroke-dashoffset" from="214" to="0" dur="0.6s" fill="freeze"/>
+      </circle>
+      <polyline points="20,37 31,48 52,26" fill="none" stroke="#28a745" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="50" stroke-dashoffset="50">
+        <animate attributeName="stroke-dashoffset" from="50" to="0" dur="0.5s" begin="0.4s" fill="freeze"/>
+      </polyline>
+    </svg>
+    <h3 class="h5 mb-1">Bravo ! Tour d’Europe éco réussi ✅</h3>
+    <p class="text-muted mb-3">Vous venez de gagner un nouveau code.</p>
+    <a href="{{ next_url }}" class="btn btn-success">Continuer</a>
+    <div class="small text-muted mt-2">Redirection automatique…</div>
+  </div>
+</div>
+<script>setTimeout(()=>{location.href="{{ next_url }}";},1800)</script>
+{% endif %}
+
+{% endblock %}

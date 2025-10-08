@@ -1,13 +1,16 @@
+# game/views.py
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_POST
 from .models import Team, Player, TeamCode
 from django.http import JsonResponse
 from django.utils import timezone
 from django.urls import reverse
+from datetime import timedelta  # ⬅️ utile pour le chrono
 
 PUZZLES = [
     {"slug": "museum", "title": "Musée des œuvres", "code": "ARTE"},
     {"slug": "hotel",  "title": "Chambre d'hôtel éco", "code": "ECO"},
+    {"slug": "rail",   "title": "Tour d’Europe éco",  "code": "RAIL"},
 ]
 
 def _player(request, team):
@@ -20,7 +23,12 @@ def start(request):
 @require_POST
 def create_team(request):
     name = (request.POST.get("player_name") or "Alex").strip()
-    team = Team.objects.create()
+    now = timezone.now()
+    # ⏱️ Démarre le compte à rebours de 10 min dès la création
+    team = Team.objects.create(
+        started_at=now,
+        deadline_at=now + timedelta(minutes=10),
+    )
     alex = Player.objects.create(team=team, name=name, role="A", is_host=True)
     noa  = Player.objects.create(team=team, name="Noa", role="B")
     request.session["player_id"] = alex.id
@@ -31,6 +39,14 @@ def join_team(request):
     code = (request.POST.get("code") or "").strip().upper()
     name = (request.POST.get("player_name") or "Noa").strip()
     team = get_object_or_404(Team, code=code)
+
+    # ⏱️ Sécurité : si, pour une raison quelconque, le timer n'existe pas, on l'initialise
+    if not team.started_at or not team.deadline_at:
+        now = timezone.now()
+        team.started_at = now
+        team.deadline_at = now + timedelta(minutes=10)
+        team.save(update_fields=["started_at", "deadline_at"])
+
     p = team.players.filter(role="B").first() or team.players.first()
     p.name = name
     p.save(update_fields=["name"])
@@ -39,6 +55,14 @@ def join_team(request):
 
 def lobby(request, team_uuid):
     team = get_object_or_404(Team, uuid=team_uuid)
+
+    # ⏱️ Sécurité bis : s'assurer que le timer existe toujours
+    if not team.started_at or not team.deadline_at:
+        now = timezone.now()
+        team.started_at = now
+        team.deadline_at = now + timedelta(minutes=10)
+        team.save(update_fields=["started_at", "deadline_at"])
+
     player = _player(request, team)
     if not player:
         return redirect("start")
@@ -51,6 +75,8 @@ def lobby(request, team_uuid):
             url = reverse("museum_puzzle", args=[team.uuid]); enabled = True
         elif p["slug"] == "hotel":
             url = reverse("hotel_room", args=[team.uuid]); enabled = True
+        elif p["slug"] == "rail":
+            url = reverse("rail_puzzle", args=[team.uuid]);  enabled = True
         else:
             url = "#"; enabled = False
 
@@ -67,7 +93,7 @@ def lobby(request, team_uuid):
     found_codes = list(got_codes.values())
 
     return render(request, "game/lobby.html", {
-        "team": team,
+        "team": team,                # ⬅️ important : le header lit team.deadline_at
         "player": player,
         "puzzles": puzzles,
         "need_count": need_count,
@@ -115,5 +141,3 @@ def lock_validate_codes(request, team_uuid):
         return JsonResponse({"ok": True, "opened": True})
     else:
         return JsonResponse({"ok": True, "opened": False})
-
-
