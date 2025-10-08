@@ -1,19 +1,82 @@
 {% extends "game/base.html" %}{% block content %}
-<div class="row g-3">
-  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
-    <h2 class="h5">Créer une partie</h2>
-    <form method="post" action="{% url 'create_team' %}" class="row g-2">{% csrf_token %}
-      <div class="col-8"><input name="player_name" class="form-control" placeholder="Ton prénom (Alex)" required></div>
-      <div class="col-4 d-grid"><button class="btn btn-success">Créer</button></div>
-    </form>
-  </div></div></div>
-  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
-    <h2 class="h5">Rejoindre</h2>
-    <form method="post" action="{% url 'join_team' %}" class="row g-2">{% csrf_token %}
-      <div class="col-4"><input name="code" class="form-control" placeholder="Code équipe" required></div>
-      <div class="col-5"><input name="player_name" class="form-control" placeholder="Ton prénom (Noa)" required></div>
-      <div class="col-3 d-grid"><button class="btn btn-primary">Rejoindre</button></div>
-    </form>
-  </div></div></div>
+<style>
+  .hero-bg { background: radial-gradient(1200px 600px at 10% -10%, #c3e7ff 0%, transparent 60%), radial-gradient(900px 500px at 110% 10%, #fff3bf 0%, transparent 60%), linear-gradient(180deg, #f8fbff 0%, #ffffff 100%); }
+  .sparkle { position: absolute; inset: 0; pointer-events: none; background-image: radial-gradient(#ffd43b 1px, transparent 1px); background-size: 18px 18px; opacity: .25; mask-image: linear-gradient(#000, transparent); }
+  .card-hover { transition: transform .15s ease, box-shadow .15s ease; }
+  .card-hover:hover { transform: translateY(-2px); box-shadow: 0 1rem 2rem rgba(0,0,0,.08) !important; }
+  @keyframes pulseGlow { 0% { box-shadow: 0 0 0 0 rgba(25,135,84,.5);} 70% { box-shadow: 0 0 0 12px rgba(25,135,84,0);} 100% { box-shadow: 0 0 0 0 rgba(25,135,84,0);} }
+  .btn-pulse { animation: pulseGlow 1.8s infinite; }
+  .icon-badge { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:12px; background:#e7f5ff; color:#1971c2; }
+</style>
+
+<div class="position-relative hero-bg rounded-4 p-4 p-md-5 mb-4 overflow-hidden">
+  <div class="sparkle"></div>
+  <div class="row align-items-center g-4">
+    <div class="col-lg-7">
+      <h1 class="display-6 fw-bold mb-2">Escape Game — Coopérez, communiquez, gagnez !</h1>
+      <p class="lead text-muted mb-3">À deux joueurs: l’Agent terrain et l’Analyste numérique. Rejoignez la même équipe, discutez via le chat, et déjouez les arnaques ensemble.</p>
+      <div class="d-flex gap-2 flex-wrap">
+        <span class="badge rounded-pill text-bg-primary">🧭 Agent terrain</span>
+        <span class="badge rounded-pill text-bg-warning text-dark">💻 Analyste numérique</span>
+        <span class="badge rounded-pill text-bg-success">👥 Jeu en duo</span>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="row g-3">
+        <div class="col-6">
+          <div class="card shadow-sm card-hover h-100">
+            <div class="card-body">
+              <div class="icon-badge mb-2">🔒</div>
+              <div class="fw-semibold">Indices cyber</div>
+              <div class="small text-muted">HTTPS, domaines louches, faux logos…</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="card shadow-sm card-hover h-100">
+            <div class="card-body">
+              <div class="icon-badge mb-2" style="background:#fff5f5;color:#c92a2a;">🚨</div>
+              <div class="fw-semibold">Actions décisives</div>
+              <div class="small text-muted">Bloquez au bon moment pour gagner.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-md-6">
+    <div class="card shadow-sm card-hover h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h2 class="h5 mb-0">Créer une partie</h2>
+          <span class="badge text-bg-success">Host</span>
+        </div>
+        <p class="text-muted small mb-3">Créez une équipe et partagez le code avec votre partenaire.</p>
+        <form method="post" action="{% url 'create_team' %}" class="row g-2">{% csrf_token %}
+          <div class="col-8"><input name="player_name" class="form-control" placeholder="Ton prénom (Alex)" required></div>
+          <div class="col-4 d-grid"><button class="btn btn-success btn-pulse">Créer</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card shadow-sm card-hover h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h2 class="h5 mb-0">Rejoindre</h2>
+          <span class="badge text-bg-primary">Join</span>
+        </div>
+        <p class="text-muted small mb-3">Entrez le code d’équipe donné par l’Host pour jouer à deux.</p>
+        <form method="post" action="{% url 'join_team' %}" class="row g-2">{% csrf_token %}
+          <div class="col-4"><input name="code" class="form-control" placeholder="Code équipe" required></div>
+          <div class="col-5"><input name="player_name" class="form-control" placeholder="Ton prénom (Noa)" required></div>
+          <div class="col-3 d-grid"><button class="btn btn-primary">Rejoindre</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

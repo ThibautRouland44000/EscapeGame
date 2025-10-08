@@ -8,6 +8,9 @@
     <a class="btn btn-outline-success mt-2" href="{% url 'museum_puzzle' team.uuid %}">
         ➡️ Lancer l’épreuve du Musée
     </a>
+    <a class="btn btn-outline-primary mt-2" href="{% url 'office_game' team.uuid %}">
+        🚨 Lancer “L’Arnaque du Siècle” (Office de Tourisme)
+    </a>
   </ul>
   <hr>
   {% include "comms/_chat.html" with TEAM=team.uuid %}

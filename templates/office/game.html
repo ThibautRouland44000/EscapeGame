@@ -1,0 +1,59 @@
+{% extends "game/base.html" %}
+{% load static %}
+{% block content %}
+<div class="container">
+  <h2>Office du Tourisme — L’Arnaque du Siècle !</h2>
+  <p>Une cyberattaque frappe les touristes : coopérez pour identifier le site frauduleux.</p>
+
+  {% if feedback %}
+  <div style="padding:8px; background:#fee; border:1px solid #f99; margin-bottom:12px;">{{ feedback }}</div>
+  {% endif %}
+
+  <div style="display:flex; gap:16px; align-items:flex-start;">
+    <div style="flex:3;">
+      {% if role == "A" %}
+        <h3>🧭 Agent terrain</h3>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          {% for p in posters %}
+            <div style="border:1px solid #ddd; padding:12px; width: 280px;">
+              <div style="font-weight:bold;">{{ p.title }}</div>
+              <div>{{ p.price }}</div>
+              <div style="font-size:12px;color:#666;">URL: {{ p.url }}</div>
+              <img src="{% static p.img %}" alt="affiche" style="width:100%; margin:8px 0;"/>
+              <textarea placeholder="Notes personnelles" style="width:100%;"></textarea>
+              <form method="post" style="margin-top:8px;">
+                {% csrf_token %}
+                <input type="hidden" name="block_slug" value="{{ p.slug }}" />
+                <button type="submit">🚨 Bloquer ce site</button>
+              </form>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <h3>💻 Analyste numérique</h3>
+        <form method="post" style="margin-bottom:8px;">
+          {% csrf_token %}
+          <input name="host" placeholder="ex: citypass-superdeal.biz"/>
+          <button type="submit">Scanner</button>
+        </form>
+        {% if scanned_host %}
+          <div style="border:1px solid #ddd; padding:12px; width: 360px;">
+            <div style="font-family:monospace;">CHECK_URL {{ scanned_host }}</div>
+            {% if scanned_hints %}
+              <ul>
+                {% for h in scanned_hints %}<li>{{ h }}</li>{% endfor %}
+              </ul>
+            {% else %}
+              <div>Hôte inconnu. Demande l’URL exacte à A.</div>
+            {% endif %}
+          </div>
+        {% endif %}
+      {% endif %}
+    </div>
+
+    <div style="flex:2;">
+      {% include "comms/_chat.html" with TEAM=team.uuid %}
+    </div>
+  </div>
+</div>
+{% endblock %}
