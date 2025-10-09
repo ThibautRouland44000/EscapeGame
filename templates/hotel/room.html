@@ -2,7 +2,29 @@
 {% load static %}
 {% block content %}
 
+
 <style>
+/* ✅ Feuille verte en overlay sur l'image de la chambre */
+.eco-leaf{
+  position:absolute; 
+  left:90%;           /* ajuste ces % pour placer la feuille où tu veux */
+  top:18%;
+  width:34px; 
+  height:34px; 
+  border-radius:50%;
+  display:flex; 
+  align-items:center; 
+  justify-content:center;
+  background:#28a745; 
+  color:#fff; 
+  font-size:20px; 
+  line-height:1;
+  box-shadow:0 2px 8px rgba(0,0,0,.25);
+  z-index:2; 
+  pointer-events:none; /* ne bloque pas les clics sur les zones interactives */
+}
+
+
 .room-wrap{position:relative}
 .room-img{width:100%; border-radius:.5rem; transition:opacity .15s ease;}
 .clickable{cursor:pointer}
@@ -138,6 +160,7 @@
                 data-closed="{% static 'hotel/room-closed.png' %}"
                 alt="Chambre d'hôtel">
 
+            <div class="eco-leaf" aria-label="Douche éco (feuille verte)">🍃</div>
             <!-- rideaux -->
             <div id="curtainsHit" class="clickable" title="Cliquer pour écarter les rideaux"></div>
 

@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.urls import reverse
 from datetime import timedelta
 
-from .models import Team, Player  # ✅ plus de TeamCode ici
+from .models import Team, Player 
 
 PUZZLES = [
     {"slug": "museum", "title": "Musée des œuvres"},
@@ -25,7 +25,7 @@ def start(request):
 def create_team(request):
     name = (request.POST.get("player_name") or "Alex").strip()
     now = timezone.now()
-    team = Team.objects.create(started_at=now, deadline_at=now + timedelta(minutes=10))
+    team = Team.objects.create(started_at=now, deadline_at=now + timedelta(minutes=15))
     alex = Player.objects.create(team=team, name=name, role="A", is_host=True)
     noa  = Player.objects.create(team=team, name="Noa", role="B")
     request.session["player_id"] = alex.id
@@ -39,7 +39,7 @@ def join_team(request):
     if not team.started_at or not team.deadline_at:
         now = timezone.now()
         team.started_at = now
-        team.deadline_at = now + timedelta(minutes=10)
+        team.deadline_at = now + timedelta(minutes=15)
         team.save(update_fields=["started_at", "deadline_at"])
     p = team.players.filter(role="B").first() or team.players.first()
     p.name = name
@@ -52,7 +52,7 @@ def lobby(request, team_uuid):
     if not team.started_at or not team.deadline_at:
         now = timezone.now()
         team.started_at = now
-        team.deadline_at = now + timedelta(minutes=10)
+        team.deadline_at = now + timedelta(minutes=15)
         team.save(update_fields=["started_at", "deadline_at"])
 
     player = _player(request, team)
