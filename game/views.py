@@ -89,7 +89,7 @@ def lobby(request, team_uuid):
         {
             "num": 1, "slug": "museum",
             "title": "Indice 1 — Mode d’emploi",
-            "text": "Dans ce jeu, un chiffre peut cacher un autre. Si tu vois un nombre à deux chiffres, additionne-les pour n’en garder qu’un seul.",
+            "text": "Dans ce jeu, un chiffre peut cacher un autre. Si tu vois un nombre à deux chiffres, additionne les pour n’en garder qu’un seul.",
             "enabled": "museum" in solved_slugs,
         },
         {
