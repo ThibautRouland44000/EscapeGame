@@ -30,8 +30,9 @@
         <div class="text-white d-flex align-items-center gap-2">
           <span class="opacity-75">⏱️</span>
           <span id="gameTimer"
-                class="badge bg-dark px-3 py-2"
-                data-deadline="{{ team.deadline_at|date:'c' }}">--:--</span>
+            class="badge bg-dark px-3 py-2"
+            data-deadline="{{ team.deadline_at|date:'c' }}"
+            data-finished="{% if team.finished_at %}1{% else %}0{% endif %}">--:--</span>
         </div>
       {% endif %}
     </div>
@@ -52,42 +53,61 @@
   </div>
 
   <script>
-    function getCookie(n){ const m=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)'); return m?m.pop():'' }
+  function getCookie(n){ const m=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)'); return m?m.pop():'' }
 
-    (function(){
-      const el = document.getElementById('gameTimer');
-      if(!el) return;
-      const deadlineStr = el.dataset.deadline; if(!deadlineStr) return;
+  (function(){
+    const el = document.getElementById('gameTimer');
+    if(!el) return;
+    const deadlineStr = el.getAttribute('data-deadline');
+    if(!deadlineStr) return;
 
-      const deadline = new Date(deadlineStr).getTime();
-      const overlay  = document.getElementById('gameOverOverlay');
-      const main     = document.getElementById('gameMain');
+    const deadline = new Date(deadlineStr).getTime();
+    const overlay  = document.getElementById('gameOverOverlay');
+    const main     = document.getElementById('gameMain');
 
-      function pad(n){ return (n<10?'0':'') + n; }
-      function showGameOver(){
-        if(overlay){ overlay.style.display = 'flex'; }
-        if(main){
-          main.querySelectorAll('button, a, input, select, textarea').forEach(n=>{
-            n.setAttribute('disabled','disabled'); n.classList.add('disabled');
-          });
-        }
+    // démarrer en pause si la partie est déjà finie (data-finished="1")
+    let paused = (el.getAttribute('data-finished') === '1');
+    let intId = null;
+
+    function pad(n){ return (n<10?'0':'')+n; }
+    function showGameOver(){
+      if(overlay){ overlay.style.display='flex'; }
+      if(main){
+        main.querySelectorAll('button, a, input, select, textarea').forEach(n=>{
+          n.setAttribute('disabled','disabled'); n.classList.add('disabled');
+        });
       }
-      function tick(){
-        const s = Math.floor((deadline - Date.now())/1000);
-        if (s <= 0){
-          el.textContent = "00:00";
-          el.classList.remove('bg-dark','bg-warning'); el.classList.add('bg-danger');
-          showGameOver(); clearInterval(intId); return;
-        }
-        const min = Math.floor(s/60), sec = s%60;
-        el.textContent = pad(min)+":"+pad(sec);
-        el.classList.remove('bg-dark','bg-warning','bg-danger');
-        if (s <= 30) el.classList.add('bg-danger');
-        else if (s <= 60) el.classList.add('bg-warning');
-        else el.classList.add('bg-dark');
+    }
+    function render(s){
+      const min=Math.floor(s/60), sec=s%60;
+      el.textContent = pad(min)+':'+pad(sec);
+      el.classList.remove('bg-dark','bg-warning','bg-danger');
+      if (s<=30) el.classList.add('bg-danger');
+      else if (s<=60) el.classList.add('bg-warning');
+      else el.classList.add('bg-dark');
+    }
+    function tick(){
+      if(paused) return;                 // ← gel visuel
+      const s = Math.floor((deadline - Date.now())/1000);
+      if (s <= 0){
+        el.textContent = '00:00';
+        el.classList.remove('bg-dark','bg-warning'); el.classList.add('bg-danger');
+        clearInterval(intId); showGameOver(); return;
       }
-      tick(); const intId = setInterval(tick, 1000);
-    })();
-  </script>
+      render(s);
+    }
+
+    // API globale pour geler/reprendre depuis d'autres pages
+    window.GameTimer = {
+      pause(){ paused = true; },
+      resume(){ paused = false; tick(); },
+      stop(){ paused = true; if(intId){ clearInterval(intId); intId=null; } }
+    };
+
+    tick();
+    intId = setInterval(tick, 1000);
+  })();
+</script>
+
 </body>
 </html>

@@ -89,19 +89,19 @@ def lobby(request, team_uuid):
         {
             "num": 1, "slug": "museum",
             "title": "Indice 1 — Mode d’emploi",
-            "text": "Dans ce jeu, un chiffre peut cacher un autre.\nSi tu vois un nombre à deux chiffres, additionne-les pour n’en garder qu’un seul.",
+            "text": "Dans ce jeu, un chiffre peut cacher un autre. Si tu vois un nombre à deux chiffres, additionne-les pour n’en garder qu’un seul.",
             "enabled": "museum" in solved_slugs,
         },
         {
             "num": 2, "slug": "hotel",
             "title": "Indice 2 — Les trois nombres",
-            "text": "« Nombre de côtés d’un triangle × 3 »\n« Nombre de doigts d’une main + 12 »\n« Nombre de minutes dans une heure ÷ 10 »",
+            "text": "Nombre de côtés d’un triangle 3 // Nombre de doigts d’une main + 12 // Nombre de minutes dans une heure ÷ 10",
             "enabled": "hotel" in solved_slugs,
         },
         {
             "num": 3, "slug": "rail",
             "title": "Indice 3 — L’ordre secret",
-            "text": "Le chiffre le plus grand vient en premier,\nle plus petit à la suite du premier et le reste a la suite.",
+            "text": "Le chiffre le plus grand vient en premier, le plus petit à la suite du premier et le reste a la suite.",
             "enabled": "rail" in solved_slugs,
         },
     ]

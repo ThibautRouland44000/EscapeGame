@@ -18,8 +18,7 @@ class Team(models.Model):
     current_order = models.PositiveIntegerField(default=1)
     score = models.IntegerField(default=100)
     letters = models.CharField(max_length=10, default="")
-
-    # ✅ nouveaux flags de réussite
+    
     museum_solved = models.BooleanField(default=False)
     hotel_solved  = models.BooleanField(default=False)
     rail_solved   = models.BooleanField(default=False)

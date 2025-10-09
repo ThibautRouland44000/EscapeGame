@@ -272,16 +272,7 @@
     });
     btnTry.setAttribute('disabled','disabled');
   }
-  // ❄️ Freeze visuel du chrono dans la navbar
-  function freezeNavbarTimer(){
-    const t = document.getElementById('gameTimer');
-    if(!t) return;
-    const clone = t.cloneNode(true);
-    clone.removeAttribute('id');
-    clone.removeAttribute('data-deadline');
-    clone.textContent = t.textContent; // garde la valeur affichée
-    t.replaceWith(clone);              // l'interval de base.html mettra à jour l'ancien nœud, désormais hors DOM
-  }
+
   // ➜ Affiche la popup QR
   function showQR(){ onBootstrapReady(()=> { new bootstrap.Modal(document.getElementById('qrModal')).show(); }); }
 
@@ -306,7 +297,7 @@
         safe.classList.add('opened');
         spinWheel(360);
         disableControls();
-        freezeNavbarTimer();   // ❄️ stop visuel du chrono
+        if (window.GameTimer) window.GameTimer.pause();  
         showQR();              // 🎉 popup QR
       }else{
         setLed(false);
@@ -320,7 +311,7 @@
       safe.classList.add('opened');
       spinWheel(360);
       disableControls();
-      freezeNavbarTimer();
+      if (window.GameTimer) window.GameTimer.pause();
       showQR();
     });
   }
