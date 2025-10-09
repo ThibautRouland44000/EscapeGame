@@ -1,11 +1,9 @@
-# museum/views.py
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_http_methods
 from django.urls import reverse
-from game.models import Team, Player, TeamCode 
-from game.views import PUZZLES 
+from game.models import Team, Player  
 from comms.models import Message
-import random 
+import random
 
 def _player(request, team):
     pid = request.session.get("player_id")
@@ -16,7 +14,6 @@ def _stable_shuffle(seq, seed):
     items = list(seq)
     rng.shuffle(items)
     return items
-
 
 # --- DATASET FIXE (6 œuvres : peintures + David) ---
 ARTWORKS = [
@@ -29,12 +26,12 @@ ARTWORKS = [
 ]
 
 EMOJI_SETS = {
-    "A": ["🙂", "🔍", "🖼️"],   # Joconde — sourire énigmatique / chef-d’œuvre
-    "B": ["🌌", "✨", "🌙"],   # Nuit étoilée — ciel nocturne
-    "C": ["🗿", "💪", "🪨"],   # David — statue / force / marbre
-    "D": ["🌊", "⛵", "🗻"],   # Grande Vague — vague / bateaux / Fuji
-    "E": ["🕰️", "🫠", "🖼️"],  # Montres molles — horloges qui fondent
-    "F": ["👧", "💎", "🧕"],   # Fille à la perle — portrait / perle / turban
+    "A": ["🙂", "🔍", "🖼️"],
+    "B": ["🌌", "✨", "🌙"],
+    "C": ["🗿", "💪", "🪨"],
+    "D": ["🌊", "⛵", "🗻"],
+    "E": ["🕰️", "🫠", "🖼️"],
+    "F": ["👧", "💎", "🧕"],
 }
 
 EXPECTED = {
@@ -46,6 +43,7 @@ EXPECTED = {
     "F": "fille-perle",
 }
 
+# Version avec images plein format en debrief
 ARTWORKS = [
     {"slug": "joconde",        "title": "La Joconde (Leonardo da Vinci)",               "img": "museum/joconde.png",        "img_full": "museum/full/joconde.png"},
     {"slug": "nuit-etoilee",   "title": "La Nuit étoilée (Vincent van Gogh)",           "img": "museum/nuit-etoilee.png",    "img_full": "museum/full/nuit-etoilee.png"},
@@ -123,37 +121,23 @@ def museum_puzzle(request, team_uuid):
         else:
             if answers == EXPECTED:
                 success = True
-                # Progression + lettre (ex: “O”)
+                # Progression + flag résolu
                 team.current_order += 1
-                if "O" not in (team.letters or ""):
-                    team.letters += "O"
-                team.save(update_fields=["current_order","letters"])
+                team.museum_solved = True           # ✅ marque l’épreuve comme réussie
+                team.save(update_fields=["current_order", "museum_solved"])
 
-                # enregistrer le code gagné pour ce puzzle
-                MUSEUM_CODE = next(p["code"] for p in PUZZLES if p["slug"] == "museum")
-                TeamCode.objects.get_or_create(
-                    team=team, puzzle_slug="museum",
-                    defaults={"code": MUSEUM_CODE}
-                )
-                Message.objects.create(team=team, player=None, text=f"🎉 Épreuve du Musée réussie ! 🔐 Code obtenu : {MUSEUM_CODE}") 
-
-                # Message “Système” dans le chat visible par les 2 joueurs
+                # Message système
                 Message.objects.create(team=team, player=None,
                                        text="🎉 Épreuve du Musée réussie !")
-
-                # Pas de redirect immédiat : l’overlay s’affiche dans le template
             else:
                 team.score = max(0, team.score - 1)
                 team.save(update_fields=["score"])
                 feedback = "Ce n’est pas la bonne association. Discutez au chat et réessayez !"
 
-        # ======= ORDRES DÉTERMINISTES PAR ÉQUIPE =======
-    # Mélange l'ordre des œuvres (images) et des paquets d'emojis
+    # ======= ORDRES DÉTERMINISTES PAR ÉQUIPE =======
     art_order = _stable_shuffle(list(range(len(ARTWORKS))), f"{team.uuid}-ART")
     emo_order = _stable_shuffle(list(EMOJI_SETS.keys()), f"{team.uuid}-EMO")
 
-    # Construit une liste d'œuvres anonymisées pour l'affichage
-    # -> label = "Œuvre 1..6" dans l'ordre mélangé
     artworks_display = []
     for i, art_idx in enumerate(art_order):
         art = ARTWORKS[art_idx]
@@ -163,10 +147,8 @@ def museum_puzzle(request, team_uuid):
             "label": f"Œuvre {i+1}",
         })
 
-    # Construit la liste des paquets d'emojis dans un ordre mélangé
     emoji_list = [{"key": k, "emojis": EMOJI_SETS[k]} for k in emo_order]
 
-    # ======= CONTEXTE SELON RÔLE =======
     next_ok = reverse("museum_debrief", args=[team.uuid])  # ← destination après succès
 
     base_ctx = {
@@ -185,13 +167,12 @@ def museum_puzzle(request, team_uuid):
 
     return render(request, "museum/puzzle.html", ctx)
 
-
 def museum_debrief(request, team_uuid):
     team = get_object_or_404(Team, uuid=team_uuid)
     player = _player(request, team)
     if not player:
         return redirect("start")
-    
+
     items = []
     for art in ARTWORKS:
         slug = art["slug"]
@@ -210,7 +191,3 @@ def museum_debrief(request, team_uuid):
         "player": player,
         "items": items,
     })
-
-
-
-

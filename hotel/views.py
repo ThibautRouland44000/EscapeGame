@@ -1,19 +1,18 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_http_methods
 from django.urls import reverse
-from game.models import Team, Player, TeamCode
-from comms.models import Message
-from game.views import PUZZLES
+from game.models import Team, Player     
+from comms.models import Message             
 
 def _player(request, team):
     pid = request.session.get("player_id")
     return Player.objects.filter(id=pid, team=team).first()
 
-# état “scène” fixe pour la démo (cohérent avec les règles de succès)
+# état “scène” fixe pour la démo
 SCENE = {
-    "season": "printemps",   # printemps → clim/chauffage OFF (manuel)
-    "bulbs": 4,              # 3+ = basse conso (manuel)
-    "label": "feuille",      # feuille verte → < 5 min
+    "season": "printemps",
+    "bulbs": 4,
+    "label": "feuille",
     "mirror": "rectangulaire",
     "faucet": "bleu",
 }
@@ -30,7 +29,10 @@ def room_puzzle(request, team_uuid):
 
     if request.method == "POST" and player.role == "A":
         ac = (request.POST.get("ac") or "off").lower()            # "on" / "off"
-        shower = int(request.POST.get("shower") or 10)            # minutes
+        try:
+            shower = int(request.POST.get("shower") or 10)        # minutes
+        except (TypeError, ValueError):
+            shower = 10
         light = (request.POST.get("light") or "moyenne").lower()  # "basse"/"moyenne"/"forte"
 
         # température AC si présente
@@ -39,7 +41,7 @@ def room_puzzle(request, team_uuid):
         except (TypeError, ValueError):
             ac_temp = None
 
-        # Nouvelles règles de réussite
+        # Règles de réussite
         ok_ac     = (ac == "on" and ac_temp == 23)
         ok_shower = (shower <= 5)
         ok_light  = (light == "basse")
@@ -47,18 +49,14 @@ def room_puzzle(request, team_uuid):
         if ok_ac and ok_shower and ok_light:
             success = True
             team.current_order += 1
-            team.save(update_fields=["current_order"])
+            team.hotel_solved = True            # ✅ flag réussite
+            team.save(update_fields=["current_order", "hotel_solved"])
 
-            HOTEL_CODE = next(p["code"] for p in PUZZLES if p["slug"] == "hotel")
-            TeamCode.objects.get_or_create(
-                team=team, puzzle_slug="hotel", defaults={"code": HOTEL_CODE}
-            )
             Message.objects.create(
                 team=team, player=None,
-                text=f"🛏️ Épreuve Chambre réussie ! 🔐 Code obtenu : {HOTEL_CODE}"
+                text="🛏️ Épreuve Chambre réussie !"
             )
         else:
-            # Message unique, quel que soit l'erreur
             feedback = "Les réglages de la chambre d’hôtel sont incorrects."
 
     next_url = reverse("lobby", args=[team.uuid])

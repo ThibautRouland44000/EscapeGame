@@ -6,7 +6,6 @@ urlpatterns = [
     path("create/", views.create_team, name="create_team"),
     path("join/", views.join_team, name="join_team"),
     path("lobby/<uuid:team_uuid>/", views.lobby, name="lobby"),
-    path("lock/<uuid:team_uuid>/check/", views.lock_check_code, name="lock_check"),
     path("lock/<uuid:team_uuid>/validate/", views.lock_validate_codes, name="lock_validate"),
     path("gare/", include("gare.urls")),
 ]

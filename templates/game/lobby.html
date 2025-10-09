@@ -1,8 +1,22 @@
 {% extends "game/base.html" %}
+{% load static %}
 {% block content %}
 
 <style>
-/* Aspect métallique + animations du coffre */
+/* Dials */
+.lock-wrap{display:flex; gap:.5rem; justify-content:center; margin-bottom:.5rem}
+.dial{
+  width:64px; height:72px; border-radius:.5rem; background:#1c1f23; color:#fff;
+  display:flex; flex-direction:column; align-items:center; justify-content:space-between;
+  padding:.35rem .25rem; user-select:none;
+  box-shadow: inset 0 0 0 1px #343a40, 0 2px 6px rgba(0,0,0,.2);
+}
+.dial .val{ font-size:1.6rem; line-height:1; font-weight:600 }
+.dial .btn-step{ width:100%; border:0; background:#2b3035; color:#fff; border-radius:.35rem; }
+.dial .btn-step:hover{ background:#343a40 }
+.dial.open{ background:#14532d; box-shadow: inset 0 0 0 1px #198754, 0 2px 10px rgba(25,135,84,.35); }
+
+/* Coffre + anim secousse */
 #safeSvg .steel       { fill: url(#steel); }
 #safeSvg .steel-dark  { fill: #2b3035; stroke: #495057; }
 #safeSvg .hinge       { fill: #b0b7c3; }
@@ -12,16 +26,11 @@
 #safeSvg .wheel-cap   { fill:#dee2e6; stroke:#6c757d; }
 #safeSvg .led-red     { fill:#dc3545; }
 #safeSvg .led-green   { fill:#28a745; }
-
 #safeSvg #wheel { transition: transform .35s ease; transform-box: fill-box; transform-origin: center; }
 #safeSvg #door  { transition: transform .6s ease; transform-box: fill-box; transform-origin: left center; }
 #safeSvg.opened #door { transform: rotate(-18deg) translateX(-6px); }
-#safeSvg.shake { animation: safe-shake .18s linear 2; }
-@keyframes safe-shake {
-  0% { transform: translateX(-4px); }
-  50% { transform: translateX(4px); }
-  100% { transform: translateX(0); }
-}
+#safeSvg.shake, .lock-wrap.shake { animation: safe-shake .18s linear 2; }
+@keyframes safe-shake { 0%{transform:translateX(-4px)} 50%{transform:translateX(4px)} 100%{transform:translateX(0)} }
 </style>
 
 <div class="card shadow-sm"><div class="card-body">
@@ -67,31 +76,61 @@
     {% endfor %}
   </div>
 
-  <!-- Coffre-fort -->
-  <h2 class="h6 mt-3">Coffre final ({{ need_count }} codes)</h2>
+  <!-- Coffre + Indices -->
+  <h2 class="h6 mt-3">Coffre final</h2>
   <div class="row g-3">
+    <!-- Col gauche : 3 boutons Indice -->
     <div class="col-lg-7">
       <div class="border rounded p-3">
-        <div class="d-flex gap-2 flex-wrap" id="lockInputs">
-          {% for _ in slots %}
-            <input class="form-control form-control-sm codeInput" placeholder="Code {{ forloop.counter }}"
-                   maxlength="12" style="max-width:160px" />
+        <div class="row g-2">
+          {% for h in hints %}
+            <div class="col-12 col-md-6">
+              <button
+                class="btn w-100 {% if h.enabled %}btn-primary{% else %}btn-outline-secondary{% endif %} hintBtn"
+                data-hint-title="{{ h.title }}"
+                data-hint-text="{{ h.text|escapejs }}"
+                {% if not h.enabled %}disabled{% endif %}
+                style="height: 38px;">
+                Indice {{ h.num }}
+              </button>
+            </div>
           {% endfor %}
         </div>
-        <div class="mt-2 d-flex gap-2">
-          <button id="btnOpen" class="btn btn-primary btn-sm" disabled>Ouvrir le coffre</button>
-          <div id="lockMsg" class="small text-muted"></div>
+        <div class="small text-muted mt-2">
+          Débloquez les indices en réussissant les épreuves. Quand vous devinez le code, utilisez le cadenas à droite.
         </div>
-        {% if found_codes %}
-          <div class="small text-muted mt-2">Codes déjà gagnés : {{ found_codes|join:", " }}</div>
-        {% endif %}
       </div>
     </div>
 
+    <!-- Col droite : Cadenas + Safe -->
     <div class="col-lg-5">
-      <div class="d-flex justify-content-center align-items-center">
+      <div class="border rounded p-3 d-flex flex-column align-items-center">
+        <!-- Cadenas à molettes -->
+        <div class="lock-wrap" id="dialLock" aria-label="Cadenas à code">
+          <div class="dial" data-idx="0">
+            <button class="btn-step up" type="button">▲</button>
+            <div class="val">0</div>
+            <button class="btn-step down" type="button">▼</button>
+          </div>
+          <div class="dial" data-idx="1">
+            <button class="btn-step up" type="button">▲</button>
+            <div class="val">0</div>
+            <button class="btn-step down" type="button">▼</button>
+          </div>
+          <div class="dial" data-idx="2">
+            <button class="btn-step up" type="button">▲</button>
+            <div class="val">0</div>
+            <button class="btn-step down" type="button">▼</button>
+          </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <div class="small text-muted">Entrez le code à 3 chiffres.</div>
+          <button class="btn btn-primary btn-sm" id="btnTryCode">Valider le code</button>
+        </div>
+
         <!-- SAFE SVG -->
-        <svg id="safeSvg" viewBox="0 0 260 200" width="240" height="200">
+        <svg id="safeSvg" viewBox="0 0 260 200" width="240" height="200" class="mt-1">
           <defs>
             <linearGradient id="steel" x1="0" y1="0" x2="1" y2="1">
               <stop offset="0" stop-color="#8d99ae"/>
@@ -99,27 +138,18 @@
               <stop offset="1" stop-color="#6c757d"/>
             </linearGradient>
           </defs>
-
-          <!-- corps -->
           <rect x="10" y="20" width="240" height="160" rx="12" class="steel"/>
-          <!-- rivets -->
-          {% for x in "0,1,2,3,4"|cut:"," %}{% endfor %}
           <circle class="bolt" cx="22" cy="32" r="3"/>
           <circle class="bolt" cx="238" cy="32" r="3"/>
           <circle class="bolt" cx="22" cy="178" r="3"/>
           <circle class="bolt" cx="238" cy="178" r="3"/>
-
-          <!-- porte -->
           <g id="door">
             <rect x="32" y="34" width="196" height="132" rx="8" class="steel-dark"/>
             <rect x="40" y="42" width="180" height="116" rx="6" fill="none" class="stroke" stroke-width="8"/>
-            <!-- LED -->
             <circle id="led" cx="206" cy="52" r="6" class="led-red"/>
-            <!-- roue -->
             <g id="wheel" transform="translate(0,0)">
               <circle cx="160" cy="100" r="20" class="wheel-part"/>
               <circle cx="160" cy="100" r="8" class="wheel-cap"/>
-              <!-- 6 rayons -->
               <line x1="160" y1="82" x2="160" y2="94" stroke="#6c757d" stroke-width="2"/>
               <line x1="160" y1="106" x2="160" y2="118" stroke="#6c757d" stroke-width="2"/>
               <line x1="142" y1="100" x2="154" y2="100" stroke="#6c757d" stroke-width="2"/>
@@ -127,15 +157,13 @@
               <line x1="147" y1="87" x2="154" y2="94" stroke="#6c757d" stroke-width="2"/>
               <line x1="166" y1="106" x2="173" y2="113" stroke="#6c757d" stroke-width="2"/>
             </g>
-            <!-- poignée (option look) -->
             <rect x="186" y="92" width="10" height="16" rx="3" fill="#adb5bd" stroke="#6c757d"/>
           </g>
-
-          <!-- charnières -->
           <rect x="28" y="46" width="6" height="28" class="hinge"/>
           <rect x="28" y="92" width="6" height="28" class="hinge"/>
           <rect x="28" y="138" width="6" height="28" class="hinge"/>
         </svg>
+        <div id="lockMsg" class="small text-muted mt-2"></div>
       </div>
     </div>
   </div>
@@ -144,88 +172,167 @@
   {% include "comms/_chat.html" with TEAM=team.uuid %}
 </div></div>
 
+<!-- Modal Indice -->
+<div class="modal fade" id="hintModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header">
+      <h5 class="modal-title" id="hintTitle">Indice</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+    </div>
+    <div class="modal-body" id="hintText" style="white-space:pre-wrap"></div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- Modal QR après ouverture du coffre -->
+<div class="modal fade" id="qrModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content text-center">
+      <div class="modal-header">
+        <h5 class="modal-title">Passeport</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <div class="modal-body">
+        <img src="{% static 'game/qr_passport.png' %}" alt="QR code passeport" class="img-fluid" style="max-width:260px">
+        <p class="mt-3 mb-0">
+          Felicitation, vous venez de deverouiller votre passeport,<br>
+          veuillez scanner le qr code fournit pour y acceder
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-success" data-bs-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 (function(){
-  function getCookie(n){const m=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)');return m?m.pop():''}
+  // Charge Bootstrap JS si nécessaire (pour les modals)
+  (function ensureBootstrap(){
+    if(!window.bootstrap){
+      const s=document.createElement('script');
+      s.src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js";
+      document.head.appendChild(s);
+    }
+  })();
 
-  const inputs = Array.from(document.querySelectorAll('.codeInput'));
-  const btnOpen = document.getElementById('btnOpen');
-  const msg = document.getElementById('lockMsg');
+  // Utilitaire: exécuter quand Bootstrap est prêt
+  function onBootstrapReady(cb){
+    if (window.bootstrap && window.bootstrap.Modal) { cb(); return; }
+    const it = setInterval(()=>{ if (window.bootstrap && window.bootstrap.Modal){ clearInterval(it); cb(); } }, 40);
+    setTimeout(()=>clearInterval(it), 5000);
+  }
 
-  const safe = document.getElementById('safeSvg');
-  const door = document.getElementById('door');
+  // Affiche la modal d'indice à la demande
+  const modalEl = document.getElementById('hintModal');
+  let hintModal;
+  function ensureModal(){ if(!hintModal){ hintModal = new bootstrap.Modal(modalEl); } return hintModal; }
+  document.querySelectorAll('.hintBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.getElementById('hintTitle').textContent = btn.dataset.hintTitle || 'Indice';
+      document.getElementById('hintText').textContent  = btn.dataset.hintText || '';
+      onBootstrapReady(()=> ensureModal().show());
+    });
+  });
+
+  // ===== Cadenas à 3 molettes =====
+  const TARGET = '968';
+  const dialWrap = document.getElementById('dialLock');
+  const msg      = document.getElementById('lockMsg');
+  const btnTry   = document.getElementById('btnTryCode');
+
+  const safe  = document.getElementById('safeSvg');
   const wheel = document.getElementById('wheel');
-  const led = document.getElementById('led');
+  const led   = document.getElementById('led');
 
-  let wheelAngle = 0;
+  const dials = Array.from(dialWrap.querySelectorAll('.dial'));
+  const state = [0,0,0];
 
   function spinWheel(deg){
-    wheelAngle = (wheelAngle + deg) % 360;
-    wheel.style.transform = `rotate(${wheelAngle}deg)`;
+    wheel.style.transform = `rotate(${deg}deg)`;
+    setTimeout(()=> wheel.style.transform = '', 600);
   }
   function setLed(ok){
     led.classList.toggle('led-green', ok);
     led.classList.toggle('led-red', !ok);
   }
-  function shake(){
-    safe.classList.remove('shake'); // restart anim
-    void safe.offsetWidth;
-    safe.classList.add('shake');
+  function shakeBoth(){
+    safe.classList.remove('shake'); dialWrap.classList.remove('shake');
+    void safe.offsetWidth; void dialWrap.offsetWidth;
+    safe.classList.add('shake'); dialWrap.classList.add('shake');
   }
-
-  // check à la saisie
-  inputs.forEach(inp=>{
-    inp.addEventListener('change', ()=>{
-      const code = inp.value.trim().toUpperCase();
-      if(!code){ inp.classList.remove('is-valid','is-invalid'); return; }
-      fetch("{% url 'lock_check' team.uuid %}", {
-        method: "POST",
-        headers: {"X-CSRFToken": getCookie("csrftoken"), "Content-Type":"application/x-www-form-urlencoded"},
-        body: new URLSearchParams({code})
-      })
-      .then(r=>r.json()).then(d=>{
-        if(d.ok && d.match){
-          inp.classList.add('is-valid'); inp.classList.remove('is-invalid');
-          setLed(true);  spinWheel(45);
-        } else {
-          inp.classList.add('is-invalid'); inp.classList.remove('is-valid');
-          setLed(false); shake();
-        }
-        btnOpen.disabled = !inputs.every(i=>i.value.trim().length>0);
-      })
-      .catch(()=>{ msg.textContent="Erreur réseau."; });
+  function refreshDials(){ dials.forEach((d,i)=>{ d.querySelector('.val').textContent = state[i]; }); }
+  function disableControls(){
+    dials.forEach(d=>{
+      d.querySelectorAll('button').forEach(b=> b.setAttribute('disabled','disabled'));
+      d.classList.add('open');
     });
-  });
+    btnTry.setAttribute('disabled','disabled');
+  }
+  // ❄️ Freeze visuel du chrono dans la navbar
+  function freezeNavbarTimer(){
+    const t = document.getElementById('gameTimer');
+    if(!t) return;
+    const clone = t.cloneNode(true);
+    clone.removeAttribute('id');
+    clone.removeAttribute('data-deadline');
+    clone.textContent = t.textContent; // garde la valeur affichée
+    t.replaceWith(clone);              // l'interval de base.html mettra à jour l'ancien nœud, désormais hors DOM
+  }
+  // ➜ Affiche la popup QR
+  function showQR(){ onBootstrapReady(()=> { new bootstrap.Modal(document.getElementById('qrModal')).show(); }); }
 
-  // ouverture du coffre
-  btnOpen.addEventListener('click', ()=>{
-    const codes = inputs.map(i=>i.value.trim().toUpperCase());
+  function tryOpen(){
+    const code = state.join('');
+    if(code !== TARGET){
+      setLed(false);
+      msg.textContent = "Mauvais code.";
+      shakeBoth();
+      return;
+    }
     fetch("{% url 'lock_validate' team.uuid %}", {
       method: "POST",
       headers: {"X-CSRFToken": getCookie("csrftoken"), "Content-Type":"application/x-www-form-urlencoded"},
-      body: new URLSearchParams({ codes: codes })
+      body: new URLSearchParams({ final_code: code })
     })
-    .then(r=>r.json()).then(d=>{
+    .then(r=>r.json())
+    .then(d=>{
       if(d.ok && d.opened){
-        msg.textContent = "🗝️ Coffre ouvert !";
         setLed(true);
-        // wheel spinning + porte qui s'entrouvre
-        spinWheel(360);
+        msg.textContent = "🗝️ Coffre ouvert !";
         safe.classList.add('opened');
-      } else if(d.error === "not_all_solved") {
-        msg.textContent = "Il manque des codes (épreuves non terminées).";
-        setLed(false); shake();
-      } else if(d.error === "missing_or_extra"){
-        msg.textContent = "Nombre de codes incorrect ({{ need_count }} requis).";
-        setLed(false); shake();
-      } else {
-        msg.textContent = "Le set saisi ne correspond pas aux codes gagnés.";
-        setLed(false); shake();
+        spinWheel(360);
+        disableControls();
+        freezeNavbarTimer();   // ❄️ stop visuel du chrono
+        showQR();              // 🎉 popup QR
+      }else{
+        setLed(false);
+        msg.textContent = "Code refusé.";
+        shakeBoth();
       }
     })
-    .catch(()=>{ msg.textContent="Erreur réseau."; });
+    .catch(()=>{
+      // En cas d'erreur réseau, on ouvre quand même localement
+      setLed(true);
+      safe.classList.add('opened');
+      spinWheel(360);
+      disableControls();
+      freezeNavbarTimer();
+      showQR();
+    });
+  }
+
+  // Contrôles ▲▼
+  dials.forEach((d,i)=>{
+    d.querySelector('.up').addEventListener('click', ()=>{ state[i] = (state[i]+1) % 10; refreshDials(); });
+    d.querySelector('.down').addEventListener('click', ()=>{ state[i] = (state[i]+9) % 10; refreshDials(); });
   });
+  btnTry.addEventListener('click', tryOpen);
+
+  refreshDials();
 })();
 </script>
-
 {% endblock %}

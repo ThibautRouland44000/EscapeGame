@@ -1,19 +1,97 @@
-{% extends "game/base.html" %}{% block content %}
-<div class="row g-3">
-  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
-    <h2 class="h5">Créer une partie</h2>
-    <form method="post" action="{% url 'create_team' %}" class="row g-2">{% csrf_token %}
-      <div class="col-8"><input name="player_name" class="form-control" placeholder="Ton prénom (Alex)" required></div>
-      <div class="col-4 d-grid"><button class="btn btn-success">Créer</button></div>
-    </form>
-  </div></div></div>
-  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body">
-    <h2 class="h5">Rejoindre</h2>
-    <form method="post" action="{% url 'join_team' %}" class="row g-2">{% csrf_token %}
-      <div class="col-4"><input name="code" class="form-control" placeholder="Code équipe" required></div>
-      <div class="col-5"><input name="player_name" class="form-control" placeholder="Ton prénom (Noa)" required></div>
-      <div class="col-3 d-grid"><button class="btn btn-primary">Rejoindre</button></div>
-    </form>
-  </div></div></div>
+{% extends "game/base.html" %}
+{% load static %}
+{% block content %}
+
+<style>
+  .hero{
+    background: radial-gradient(900px 320px at 50% -200px, rgba(25,135,84,.12), transparent 70%);
+    border-radius:1rem; padding:2.25rem 1.75rem;
+  }
+  .tagline{ font-size:1.05rem }
+  .pill{ border-radius:2rem; }
+  .synopsis p{ margin-bottom:.6rem }
+  .feat .card{ border:0; box-shadow:0 2px 10px rgba(0,0,0,.06); }
+  .cta-card .btn{ padding:.9rem 1rem; font-weight:600 }
+</style>
+
+<!-- HERO : image bien CENTRÉE + pitch court -->
+<div class="hero mb-4 text-center">
+  <img src="{% static 'game/home_hero.png' %}" class="img-fluid rounded shadow-sm mb-3"
+       style="max-height:320px; object-fit:contain;" alt="Passeport pour la Cité">
+
+  <h1 class="h2 mb-2">Passeport pour la Cité</h1>
+  <p class="tagline text-muted mx-auto" style="max-width:720px">
+    Une <strong>expérience coopérative de 10 minutes</strong> pour (re)découvrir le
+    <em>tourisme responsable</em> à travers des énigmes courtes et communicatives.
+  </p>
+
+  <div class="d-flex flex-wrap justify-content-center gap-2 mt-2">
+    <span class="badge text-bg-success pill px-3 py-2">Guide & Voyageur</span>
+    <span class="badge text-bg-secondary pill px-3 py-2">Communication essentielle</span>
+    <span class="badge text-bg-dark pill px-3 py-2">Coffre & QR final</span>
+  </div>
 </div>
+
+<div class="row g-4">
+  <!-- Synopsis concis qui donne ENVIE -->
+  <div class="col-lg-7">
+    <div class="card shadow-sm h-100">
+      <div class="card-body synopsis">
+        <h2 class="h5 mb-3">Le scénario</h2>
+        <p>Un <strong>bug municipal</strong> a paralysé le <strong>Pass Découverte Responsable</strong>, indispensable pour visiter la ville.</p>
+        <p>Deux agents — le <strong>Guide local</strong> et le <strong>Voyageur connecté</strong> — doivent <strong>réactiver le système en 10 minutes</strong>.</p>
+        <p>Explorez trois espaces virtuels inspirés d’un vrai parcours touristique :</p>
+
+        <div class="row g-2 mb-2 feat">
+          <div class="col-12 col-sm-4">
+            <div class="card p-2"><div class="d-flex align-items-center gap-2 justify-content-center">
+              <span class="fs-4">🚉</span><div>La Gare</div>
+            </div></div>
+          </div>
+          <div class="col-12 col-sm-4">
+            <div class="card p-2"><div class="d-flex align-items-center gap-2 justify-content-center">
+              <span class="fs-4">🏨</span><div>L’Hôtel</div>
+            </div></div>
+          </div>
+          <div class="col-12 col-sm-4">
+            <div class="card p-2"><div class="d-flex align-items-center gap-2 justify-content-center">
+              <span class="fs-4">🖼️</span><div>Le Musée</div>
+            </div></div>
+          </div>
+        </div>
+
+        <p>Au programme : <strong>mobilité durable</strong>, <strong>cybersécurité en voyage</strong>,
+           <strong>éco-gestes</strong> et <strong>accessibilité culturelle</strong>.</p>
+        <p>Chaque joueur a des infos différentes : <em>l’un voit le terrain</em>, <em>l’autre manipule les interfaces</em>.
+           La réussite dépend entièrement de votre <strong>communication</strong> et de votre <strong>coopération</strong>.</p>
+        <p class="mb-0"><strong>Objectif :</strong> réunir les 3 codes et ouvrir le coffre pour afficher le <strong>QR passeport</strong> final.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTAs créer / rejoindre -->
+  <div class="col-lg-5">
+    <div class="card shadow-sm cta-card mb-3">
+      <div class="card-body">
+        <h2 class="h5">Créer une partie</h2>
+        <form method="post" action="{% url 'create_team' %}" class="row g-2">{% csrf_token %}
+          <div class="col-8"><input name="player_name" class="form-control" placeholder="Ton prénom (Alex)" required></div>
+          <div class="col-4 d-grid"><button class="btn btn-success">Lancer</button></div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card shadow-sm cta-card">
+      <div class="card-body">
+        <h2 class="h5">Rejoindre une partie</h2>
+        <form method="post" action="{% url 'join_team' %}" class="row g-2">{% csrf_token %}
+          <div class="col-4"><input name="code" class="form-control" placeholder="Code équipe" required></div>
+          <div class="col-5"><input name="player_name" class="form-control" placeholder="Ton prénom (Noa)" required></div>
+          <div class="col-3 d-grid"><button class="btn btn-primary">Rejoindre</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
